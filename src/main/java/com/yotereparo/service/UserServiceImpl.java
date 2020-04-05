@@ -13,12 +13,12 @@ import java.util.Set;
 
 import javax.imageio.ImageIO;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.imgscalr.Scalr;
 import org.imgscalr.Scalr.Method;
 import org.imgscalr.Scalr.Mode;
 import org.joda.time.DateTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.core.env.Environment;
@@ -46,7 +46,7 @@ import com.yotereparo.util.error.CustomResponseError;
 @Transactional 
 public class UserServiceImpl implements UserService {
 	
-	private static final Logger logger = LogManager.getLogger(UserServiceImpl.class);
+	private static final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 	
 	@Autowired
 	private UserDaoImpl dao;
@@ -67,8 +67,7 @@ public class UserServiceImpl implements UserService {
 		// No cargamos imagenes en tiempo de creacion, siempre usar el metodo dedicado
 		user.setFoto(null);
 		user.setThumbnail(null);
-		// Unstable:
-		user.setEstado("ACTIVO");
+		user.setEstado(User.ACTIVE);
 		user.setIntentosIngreso(0);
 		
 		/*
@@ -102,6 +101,10 @@ public class UserServiceImpl implements UserService {
 
 	public void updateUser(User user) {
 		User entity = getUserById(user.getId());
+		
+		if (!SecurityUtils.encryptPassword(user.getContrasena().concat(entity.getSalt())).equals(entity.getContrasena()))
+			// Si la contraseña ingresada es incorrecta, no procedemos con el update.
+			throw new CustomResponseError("User","contrasena",messageSource.getMessage("user.contrasena.not.equals.current", null, Locale.getDefault()));
 		
 		if (!user.getNombre().equals(entity.getNombre())) {
 			logger.debug(String.format("Updating attribute 'Nombre' from user <%s>", user.getId()));
@@ -168,17 +171,6 @@ public class UserServiceImpl implements UserService {
 				logger.debug(String.format("Updating attribute 'Descripcion' from user <%s>", user.getId()));
 				entity.setDescripcion(null);
 			}
-		}
-		
-		String newPassword = SecurityUtils.encryptPassword(user.getContrasena().concat(entity.getSalt()));
-		if (!entity.getContrasena().equals(newPassword)) {
-			// TODO: Mover a método dedicado
-			logger.debug(String.format("Updating attribute 'Contrasena' (and derivates) from user <%s>", user.getId()));
-			entity.setContrasena(newPassword);
-			entity.setFechaUltimoCambioContrasena(new DateTime());
-			entity.setFechaExpiracionContrasena(
-					new DateTime().plusDays(Integer.parseInt(environment.getProperty("password.expiration.timeoffset.days")))
-					);
 		}
 		
 		// Agregamos y quitamos roles al usuario de acuerdo con su definicion de membresia actual. Todo usuario es usuario final.
@@ -264,14 +256,70 @@ public class UserServiceImpl implements UserService {
 			entity.setCiudad(user.getCiudad());
 		}
 		
-		/* El estado lo calculamos con reglas un poco más complejas que aun no definimos.
-		entity.setEstado(user.getEstado()); */
-		/* Gestionado por componentes de sesión
-		entity.setIntentosIngreso(user.getIntentosIngreso());
-		entity.setFechaUltimoIngreso(user.getFechaUltimoIngreso()); */
 		logger.info(String.format("Commiting update for user <%s>", user.getId()));
 	}
-
+	
+	public void changeUserPasswordById(String id, String currentPassword, String newPassword) {
+		User user = getUserById(id);
+		
+		currentPassword = SecurityUtils.encryptPassword(currentPassword.concat(user.getSalt()));
+		newPassword = SecurityUtils.encryptPassword(newPassword.concat(user.getSalt()));
+		String trueCurrentPassword = user.getContrasena();
+		// La verdadera contraseña actual debe ser igual a la contraseña actual ingresada por el usuario
+		if (currentPassword.equals(trueCurrentPassword)) {
+			// La nueva contraseña no puede ser igual a la anterior
+			if (!newPassword.equals(trueCurrentPassword)) {
+				logger.debug(String.format("Updating attribute 'Contrasena' (and derivates) from user <%s>", user.getId()));
+				user.setContrasena(newPassword);
+				user.setFechaUltimoCambioContrasena(new DateTime());
+				user.setFechaExpiracionContrasena(
+						new DateTime().plusDays(Integer.parseInt(environment.getProperty("password.expiration.timeoffset.days")))
+						);
+				// Limpiamos estado de sesión del usuario, desbloqueamos si se encuentra bloqueado
+				if (user.getIntentosIngreso() != 0) {
+					logger.debug(String.format("Updating attribute 'IntentosIngreso' from user <%s>", user.getId()));
+					user.setIntentosIngreso(0);
+				}
+				if (user.getEstado().equals(User.BLOCKED)) {
+					logger.warn(String.format("Enabling previously blocked user <%s>", user.getId()));
+					user.setEstado(User.ACTIVE);
+				}
+			}
+			else
+				throw new CustomResponseError("User","contrasena",messageSource.getMessage("user.contrasena.must.be.different.from.current", null, Locale.getDefault()));
+		}
+		else
+			throw new CustomResponseError("User","contrasena",messageSource.getMessage("user.contrasena.not.equals.current", null, Locale.getDefault()));
+	}
+	
+	public void registerSuccessfulLoginAttempt(User user) {
+		User entity = getUserById(user.getId());
+		
+		logger.debug(String.format("Updating attribute 'FechaUltimoIngreso' from user <%s>", user.getId()));
+		entity.setFechaUltimoIngreso(new DateTime());
+		if (user.getIntentosIngreso() != 0) {
+			logger.debug(String.format("Updating attribute 'IntentosIngreso' from user <%s>", user.getId()));
+			entity.setIntentosIngreso(0);
+		}
+		
+		logger.info(String.format("Successful login attempt registered for user <%s>", user.getId()));
+	}
+	
+	public void registerFailedLoginAttempt(User user) {
+		User entity = getUserById(user.getId());
+		
+		logger.debug(String.format("Updating attribute 'IntentosIngreso' from user <%s>", user.getId()));
+		entity.setIntentosIngreso(user.getIntentosIngreso()+1);
+		// Si el usuario alcanza o excede el límite de intentos de ingreso, se bloquea
+		if (entity.getIntentosIngreso() >= Integer.parseInt(environment.getProperty("login.attempts.limit")))
+			if (!entity.getEstado().equals(User.BLOCKED)) {
+				logger.warn(String.format("Disabling user <%s>: Too many failed login attempts", user.getId()));
+				entity.setEstado(User.BLOCKED);
+			}
+		
+		logger.info(String.format("Failed login attempt registered for user <%s>", user.getId()));
+	}
+	
 	public void deleteUserById(String id) {
 		logger.info(String.format("Commiting deletion of user <%s>", id));
 		dao.deleteUserById(id);
@@ -287,7 +335,7 @@ public class UserServiceImpl implements UserService {
 		return dao.getUserById(id);
 	}
 	
-	public boolean isPrestador(User user) {
+	public boolean isProvider(User user) {
 		logger.debug(String.format("Verifying if user's <%s> is of type PRESTADOR", user.getId()));
 		for (Role role : roleService.getAllPrestadorRoles()) {
 			if (user.getRoles().contains(role))
@@ -296,7 +344,7 @@ public class UserServiceImpl implements UserService {
 		return false;
 	}
 	
-	public boolean isFinal(User user) {
+	public boolean isCustomer(User user) {
 		logger.debug(String.format("Verifying if user's <%s> is of type FINAL", user.getId()));
 		for (Role role : roleService.getAllFinalRoles()) {
 			if (user.getRoles().contains(role))
@@ -307,31 +355,35 @@ public class UserServiceImpl implements UserService {
 	
 	/*
 	 *  Actualiza la foto y el thumbnail del Usuario haciendo un resize de la foto suscripta,
-	 *  si el procesamiento del thumbnail levanta excepcion, no suscribe la actualizacion
-	 *  de la foto. Si la foto es nula, eliminamos la foto y thumbnail actual del usuario.
+	 *  Si el parámetro <foto> es nulo, eliminamos la foto y thumbnail actual del usuario.
 	 */
 	public void updateUserPhotoById(String id, byte[] photo) {
 		User entity = dao.getUserById(id);
 		if (photo != null) {
 	        try {
-	        	logger.debug(String.format("Updating attribute 'Foto' from user <%s>",id));
-	        	entity.setFoto(photo);
-	        	
-				// construye y guarda el thumbnail a partir de la foto suscripta
-	        	logger.debug("Building thumbnail from input image");
+	        	// Reformateamos la imagen suscripta para normalizar archivos muy grandes, y generamos el thumbnail
 	        	InputStream is = new ByteArrayInputStream(photo);
 		        BufferedImage img = ImageIO.read(is);
-		        BufferedImage thumbImg = Scalr.resize(img, Method.ULTRA_QUALITY,
+		        logger.debug("Resizing input image");
+		        BufferedImage userPhoto = Scalr.resize(img, Method.ULTRA_QUALITY,
+	                    Mode.AUTOMATIC, 300, 300);
+		        logger.debug("Building thumbnail from input image");
+		        BufferedImage userThumbnail = Scalr.resize(img, Method.ULTRA_QUALITY,
 	                    Mode.AUTOMATIC, 100, 100);
 		        
 		        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-	        	ImageIO.write(thumbImg, "png", baos);
+		        ImageIO.write(userPhoto, "png", baos);
+		        logger.debug(String.format("Updating attribute 'Foto' from user <%s>",id));
+	        	entity.setFoto(baos.toByteArray());
 	        	
+	        	baos.reset();
+	        	ImageIO.write(userThumbnail, "png", baos);
 	        	logger.debug(String.format("Updating attribute 'Thumbnail' from user <%s>",id));
 		        entity.setThumbnail(baos.toByteArray());
 		        
 		        img.flush();
-		        thumbImg.flush();
+		        userPhoto.flush();
+		        userThumbnail.flush();
 		        baos.close();		        
 	        }
 	        catch (IOException e) {

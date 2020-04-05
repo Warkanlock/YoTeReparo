@@ -4,8 +4,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +28,7 @@ import com.yotereparo.model.District;
 @Transactional 
 public class CityServiceImpl implements CityService {
 	
-	private static final Logger logger = LogManager.getLogger(CityServiceImpl.class);
+	private static final Logger logger = LoggerFactory.getLogger(CityServiceImpl.class);
 	
 	@Autowired
 	private CityDaoImpl dao;
@@ -47,7 +47,7 @@ public class CityServiceImpl implements CityService {
 		Set<District> validDistricts = new HashSet<District>();
 		for (District district : districts)
 			if (cityContainsDistrict(city, district)) {
-				logger.debug(String.format("Allowing district <%s>", district.toString()));
+				logger.debug(String.format("Allowing district <%s>", district.getId()));
 				validDistricts.add(district);
 			}
 		
@@ -58,7 +58,7 @@ public class CityServiceImpl implements CityService {
 		Set<District> invalidDistricts = new HashSet<District>();
 		for (District district : districts)
 			if (!cityContainsDistrict(city, district)) {
-				logger.debug(String.format("Discarding district <%s>", district.toString()));
+				logger.debug(String.format("Discarding district <%s>", district.getId()));
 				invalidDistricts.add(district);
 			}
 		
@@ -66,7 +66,10 @@ public class CityServiceImpl implements CityService {
 	}
 	
 	public boolean cityContainsDistrict(City city, District district) {
-		logger.debug(String.format("Validating that district <%s> belongs in city with ID <%s>", district.toString(), city.getId()));
-		return city.getBarrios().contains(district);
+		logger.debug(String.format("Validating that district <%s> belongs in city with ID <%s>", district.getId(), city.getId()));
+		for (District entry : city.getBarrios())
+			if (entry.getId() == district.getId())
+				return true;
+		return false;
 	}
 }

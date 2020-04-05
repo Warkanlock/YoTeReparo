@@ -25,6 +25,19 @@ import org.springframework.format.annotation.DateTimeFormat;
 @Table(name="usuario") 
 public class User
 {
+	
+	// Constantes de estado
+	public static final String ACTIVE = "ACTIVO";
+	public static final String INACTIVE = "INACTIVO";
+	public static final String BLOCKED = "BLOQUEADO";
+	public static final String ARCHIVED = "ARCHIVADO";
+	
+	public static final String STATUS_LIST_REGEXP =
+			ACTIVE + "|" +
+			INACTIVE + "|" +
+			BLOCKED + "|" +
+			ARCHIVED;
+	
 	@Id
 	@Column(name = "id_usuario", nullable = false)
 	private String id;
@@ -91,7 +104,7 @@ public class User
 	@JoinColumn(name = "id_usuario", nullable = false, updatable = false, insertable = true)
 	private Set<Address> direcciones = new HashSet<Address>(0);
 	
-	@ManyToMany(cascade={CascadeType.PERSIST, CascadeType.MERGE},fetch=FetchType.EAGER)
+	@ManyToMany(cascade=CascadeType.MERGE,fetch=FetchType.EAGER)
     @JoinTable(name="usuario_rol",
         joinColumns = {@JoinColumn(name="id_usuario")},
         inverseJoinColumns = {@JoinColumn(name="id_rol")}    
@@ -106,8 +119,12 @@ public class User
     )
 	private Set<District> barrios = new HashSet<District>(0);
 	
-	@OneToMany(mappedBy = "usuarioPrestador", cascade ={CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER, orphanRemoval = true)
+	@OneToMany(mappedBy = "usuarioPrestador", fetch = FetchType.EAGER, cascade=CascadeType.MERGE, orphanRemoval = true)
 	private Set<Service> servicios  = new HashSet<Service>(0);
+	
+	@OneToMany(mappedBy = "usuarioFinal", fetch = FetchType.EAGER, cascade = CascadeType.MERGE, orphanRemoval = true)
+	@Where(clause = "estado <> 'ARCHIVADO'")
+	private Set<Quote> presupuestos = new HashSet<Quote>(0);
 
 	public User() {	}
 	
@@ -308,6 +325,19 @@ public class User
     public void removeServicio(Service servicio) {
     	servicios.remove(servicio);
     }
+    
+    public Set<Quote> getPresupuestos() {
+		return presupuestos;
+	}
+	public void setPresupuestos(Set<Quote> presupuestos) {
+		this.presupuestos = presupuestos;
+	}
+	public void addPresupuesto(Quote presupuesto) {
+		presupuestos.add(presupuesto);
+    }
+    public void removePresupuesto(Quote presupuesto) {
+    	presupuestos.remove(presupuesto);
+    }
 
 	@Override
 	public boolean equals(Object obj) {
@@ -347,6 +377,11 @@ public class User
 			if (other.direcciones != null)
 				return false;
 		} else if (!direcciones.equals(other.direcciones))
+			return false;
+		if (presupuestos == null) {
+			if (other.presupuestos != null)
+				return false;
+		} else if (!presupuestos.equals(other.presupuestos))
 			return false;
 		if (email == null) {
 			if (other.email != null)
@@ -443,6 +478,6 @@ public class User
 				+ ", fechaUltimoIngreso=" + fechaUltimoIngreso + ", fechaExpiracionContrasena="
 				+ fechaExpiracionContrasena + ", fechaCreacion=" + fechaCreacion + ", membresia=" + membresia
 				+ ", direcciones=" + direcciones + ", roles=" + roles + ", barrios=" + barrios + ", servicios="
-				+ servicios + "]";
+				+ servicios + ", presupuestos=" + presupuestos + "]";
 	}
 }

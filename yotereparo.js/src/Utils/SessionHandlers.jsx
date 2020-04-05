@@ -1,71 +1,65 @@
-import { setSessionCokie, deleteSessionCookie } from "../Utils/SessionManage";
 import React, { useState, useEffect } from "react";
+import { setSessionCokie, deleteSessionCookie } from "./SessionManage";
 import Container from "../Container/Container";
 import ElementContainer from "../Container/ElementContainer";
 import { Button } from "reactstrap";
-import { useLocation } from "react-router-dom";
 import Axios from "axios";
-
-export const NoMatch = () => {
-  let location = useLocation();
-
-  return (
-    <>
-      {" "}
-      <ElementContainer>
-        <div className="card-center-form d-flex align-items-center mx-auto">
-          <div className="row">
-            <div className="col-xs-12">
-              Donde sea que estes yendo, este no es el camino.
-              <br></br>
-              <br></br>
-              <code>
-                <strong>{location.pathname}</strong>
-              </code>
-            </div>
-          </div>
-        </div>
-      </ElementContainer>
-    </>
-  );
-};
 
 export const LoginHandler = ({ history }) => {
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loadingUser, setLoadingUser] = useState(false);
   const [errors, setErrors] = useState(false);
 
-  const handleSubmit = async event => {
+  let requestConfig = {
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+    },
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
     let result;
     try {
       setLoadingUser(true);
-      await Axios(`http://localhost:8080/YoTeReparo/users/${username}`)
-        .then(response => {
+      await Axios.post(
+        `http://localhost:8080/YoTeReparo/auth/signin`,
+        {
+          username: username,
+          password: password,
+        },
+        requestConfig
+      )
+        .then((response) => {
           console.log(response);
           result = response;
-          setLoadingUser(false);
-          setErrors(false);
         })
-        .catch(error => {
+        .catch((error) => {
           result = error.response;
         });
     } catch (error) {
       console.log(error.response);
     }
 
+    if (result.status >= 400 && result.status <= 500) {
+      setLoadingUser(false);
+      setErrors(true);
+    }
+
     if (typeof result == "undefined") {
       setLoadingUser(false);
       setErrors(true);
+    }
+
+    if (result.data && result.status === 200) {
+      setLoadingUser(false);
+      setErrors(false);
+      setSessionCokie({ username: username, security: result.data });
+      history.push("/");
+      // window.location.reload();
     } else {
-      if (username && result.status !== 404) {
-        setSessionCokie({ username });
-        history.push("/");
-        window.location.reload();
-      } else {
-        setLoadingUser(false);
-        setErrors(true);
-      }
+      setLoadingUser(false);
+      setErrors(true);
     }
   };
 
@@ -77,7 +71,7 @@ export const LoginHandler = ({ history }) => {
             <ElementContainer>
               <div className="container">
                 {errors ? (
-                  <div class="alert alert-danger text-center" role="alert">
+                  <div className="alert alert-danger text-center" role="alert">
                     Los datos de sesion no son correctos
                   </div>
                 ) : (
@@ -104,7 +98,15 @@ export const LoginHandler = ({ history }) => {
                       placeholder="Ingresa tu nombre de usuario"
                       value={username}
                       className="form-control btn-block"
-                      onChange={event => setUsername(event.target.value)}
+                      onChange={(event) => setUsername(event.target.value)}
+                      required
+                    />
+                    <input
+                      placeholder="Ingresa tu contraseña"
+                      value={password}
+                      type="password"
+                      className="form-control btn-block"
+                      onChange={(event) => setPassword(event.target.value)}
                       required
                     />
                     <Button color="danger" size="lg" block className="mt-4">
@@ -134,5 +136,18 @@ export const LogOutHandler = ({ history }) => {
     window.location.reload();
   }, [history]);
 
-  return <div>Has salido de la aplicación</div>;
+  return <></>;
+};
+
+export const fetchData = async (urlToFetch, callback) => {
+  const result = await Axios(urlToFetch)
+    .then((resp) => {
+      return resp;
+    })
+    .catch((error) => {
+      console.log(error);
+      return error;
+    });
+
+  callback(result.data);
 };

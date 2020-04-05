@@ -11,6 +11,9 @@ import javax.validation.constraints.Size;
 import org.joda.time.DateTime;
 import org.joda.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import com.yotereparo.model.Address;
 import com.yotereparo.model.District;
 import com.yotereparo.model.Role;
@@ -53,34 +56,46 @@ public class UserDto {
 	@NotEmpty(message = "{user.ciudad.not.empty}")
 	private String ciudad;
 	
+	@JsonProperty(access = Access.WRITE_ONLY)
 	@NotEmpty(message = "{user.contrasena.not.empty}")
 	private String contrasena;
 	
 	private String descripcion;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private String estado;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private int intentosIngreso;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private DateTime fechaUltimoCambioContrasena;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private DateTime fechaUltimoIngreso;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private DateTime fechaExpiracionContrasena;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private DateTime fechaCreacion;
 	
 	@Size(max=10, message = "{user.membresia.size}")
 	@Pattern(regexp = "GRATUITA|PLATA|ORO", flags = Pattern.Flag.CASE_INSENSITIVE, message = "{user.membresia.unsupported.value}")
 	private String membresia;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private Set<Role> roles = new HashSet<Role>(0);
 	
 	private Set<Address> direcciones = new HashSet<Address>(0);
 	
 	private Set<District> barrios;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private Set<ServiceDto> servicios = new HashSet<ServiceDto>(0);
+	
+	@JsonProperty(access = Access.READ_ONLY)
+	private Set<QuoteDto> presupuestos = new HashSet<QuoteDto>(0);
 	
 	public String getId() {
 		return id;
@@ -130,6 +145,7 @@ public class UserDto {
 	public void setCiudad(String ciudad) {
 		this.ciudad = ciudad;
 	}
+	@JsonIgnore
 	public String getContrasena() {
 		return contrasena;
 	}
@@ -142,36 +158,42 @@ public class UserDto {
 	public void setDescripcion(String descripcion) {
 		this.descripcion = descripcion;
 	}
+	@JsonIgnore
 	public String getEstado() {
 		return estado;
 	}
 	public void setEstado(String estado) {
 		this.estado = estado;
 	}
+	@JsonIgnore
 	public int getIntentosIngreso() {
 		return intentosIngreso;
 	}
 	public void setIntentosIngreso(int intentosIngreso) {
 		this.intentosIngreso = intentosIngreso;
 	}
+	@JsonIgnore
 	public DateTime getFechaUltimoCambioContrasena() {
 		return fechaUltimoCambioContrasena;
 	}
 	public void setFechaUltimoCambioContrasena(DateTime fechaUltimoCambioContrasena) {
 		this.fechaUltimoCambioContrasena = fechaUltimoCambioContrasena;
 	}
+	@JsonIgnore
 	public DateTime getFechaUltimoIngreso() {
 		return fechaUltimoIngreso;
 	}
 	public void setFechaUltimoIngreso(DateTime fechaUltimoIngreso) {
 		this.fechaUltimoIngreso = fechaUltimoIngreso;
 	}
+	@JsonIgnore
 	public DateTime getFechaExpiracionContrasena() {
 		return fechaExpiracionContrasena;
 	}
 	public void setFechaExpiracionContrasena(DateTime fechaExpiracionContrasena) {
 		this.fechaExpiracionContrasena = fechaExpiracionContrasena;
 	}
+	@JsonIgnore
 	public DateTime getFechaCreacion() {
 		return fechaCreacion;
 	}
@@ -184,6 +206,7 @@ public class UserDto {
 	public void setMembresia(String membresia) {
 		this.membresia = membresia;
 	}
+	@JsonIgnore
 	public Set<Role> getRoles() {
 		return roles;
 	}
@@ -202,17 +225,31 @@ public class UserDto {
 	public void setBarrios(Set<District> barrios) {
 		this.barrios = barrios;
 	}
+	@JsonIgnore
 	public Set<ServiceDto> getServicios() {
 		return servicios;
 	}
 	public void setServicios(Set<ServiceDto> servicios) {
 		this.servicios = servicios;
 	}
-	public void addServicio(ServiceDto servicioId) {
-		this.servicios.add(servicioId);
+	public void addServicio(ServiceDto servicio) {
+		this.servicios.add(servicio);
 	}
-	public void removeServicio(ServiceDto servicioId) {
-		this.servicios.remove(servicioId);
+	public void removeServicio(ServiceDto servicio) {
+		this.servicios.remove(servicio);
+	}
+	@JsonIgnore
+	public Set<QuoteDto> getPresupuestos() {
+		return presupuestos;
+	}
+	public void setPresupuestos(Set<QuoteDto> presupuestos) {
+		this.presupuestos = presupuestos;
+	}
+    public void addPresupuesto(QuoteDto presupuesto) {
+		this.presupuestos.add(presupuesto);
+	}
+	public void removePresupuesto(QuoteDto presupuesto) {
+		this.presupuestos.remove(presupuesto);
 	}
 	
 	@Override
@@ -236,6 +273,8 @@ public class UserDto {
 		result = prime * result + intentosIngreso;
 		result = prime * result + ((membresia == null) ? 0 : membresia.hashCode());
 		result = prime * result + ((nombre == null) ? 0 : nombre.hashCode());
+		result = prime * result + ((presupuestos == null) ? 0 : presupuestos.hashCode());
+		result = prime * result + ((roles == null) ? 0 : roles.hashCode());
 		result = prime * result + ((servicios == null) ? 0 : servicios.hashCode());
 		result = prime * result + ((telefonoAlternativo == null) ? 0 : telefonoAlternativo.hashCode());
 		result = prime * result + ((telefonoPrincipal == null) ? 0 : telefonoPrincipal.hashCode());
@@ -332,6 +371,16 @@ public class UserDto {
 				return false;
 		} else if (!nombre.equals(other.nombre))
 			return false;
+		if (presupuestos == null) {
+			if (other.presupuestos != null)
+				return false;
+		} else if (!presupuestos.equals(other.presupuestos))
+			return false;
+		if (roles == null) {
+			if (other.roles != null)
+				return false;
+		} else if (!roles.equals(other.roles))
+			return false;
 		if (servicios == null) {
 			if (other.servicios != null)
 				return false;
@@ -357,7 +406,7 @@ public class UserDto {
 				+ ", descripcion=" + descripcion + ", estado=" + estado + ", intentosIngreso=" + intentosIngreso
 				+ ", fechaUltimoCambioContrasena=" + fechaUltimoCambioContrasena + ", fechaUltimoIngreso="
 				+ fechaUltimoIngreso + ", fechaExpiracionContrasena=" + fechaExpiracionContrasena + ", fechaCreacion="
-				+ fechaCreacion + ", membresia=" + membresia + ", direcciones=" + direcciones + ", barrios=" + barrios
-				+ ", servicios=" + servicios + "]";
+				+ fechaCreacion + ", membresia=" + membresia + ", roles=" + roles + ", direcciones=" + direcciones
+				+ ", barrios=" + barrios + ", servicios=" + servicios + ", presupuestos=" + presupuestos + "]";
 	}
 }

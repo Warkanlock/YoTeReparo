@@ -1,11 +1,10 @@
 .errors-list {
   width: auto;
   text-align: center;
-  max-height: 150px;
+  max-height: 200px;
   min-width: 300px;
   padding: 20px 0px 20px 0px;
   margin: 20px 0px 20px 0px;
-  overflow: scroll;
   overflow-x: hidden;
   background-color: rgba(255, 0, 0, 0.2);
 }
@@ -28,6 +27,7 @@
     rgb(210, 210, 210),
     rgb(212, 175, 55)
   );
+
   display: flexbox;
   padding-top: 5px;
   padding-bottom: 5px;
@@ -39,4 +39,5 @@
   border-radius: 20px;
   background-origin: border-box;
   background-clip: padding-box;
+  box-shadow: 0px 0px 8px #903749;
 }

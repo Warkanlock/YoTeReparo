@@ -9,7 +9,13 @@ public interface UserService {
     void createUser(User user);
      
     void updateUser(User user);
-     
+    
+    void changeUserPasswordById(String id, String currentPassword, String newPassword);
+    
+    void registerSuccessfulLoginAttempt(User user);
+
+    void registerFailedLoginAttempt(User user);
+    	
     void deleteUserById(String id);
  
     List<User> getAllUsers(); 
@@ -18,7 +24,7 @@ public interface UserService {
     
     void updateUserPhotoById(String id, byte[] b64photo);
     
-    boolean isPrestador(User user);
+    boolean isProvider(User user);
     
-    boolean isFinal(User user);
+    boolean isCustomer(User user);
 }

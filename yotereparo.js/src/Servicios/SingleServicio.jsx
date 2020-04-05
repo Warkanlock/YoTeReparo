@@ -1,13 +1,22 @@
 import React from "react";
 import { useHistory } from "react-router-dom";
 
-const UnicoServicio = props => {
+//Fetch from API if location.state is null
+
+const SingleServicio = props => {
   let history = useHistory();
 
   const handleClick = data => {
     history.push({
       pathname: "/servicio/" + data.id,
-      state: { title: data.title, body: data.body }
+      state: {
+        title: data.titulo,
+        body: data.descripcion,
+        provider: data.usuarioPrestador,
+        avaliable: data.disponibilidad,
+        estimateTime: data.horasEstimadasEjecucion,
+        averagePrice: data.precioPromedio
+      }
     });
   };
 
@@ -27,9 +36,9 @@ const UnicoServicio = props => {
                 </div>
                 <div className="col-md-8 ">
                   <div className="card-body">
-                    <h3 className="card-title">{props.data.title}</h3>
+                    <h3 className="card-title">{props.data.titulo}</h3>
                     <div className="card-text">
-                      <p>{props.data.body}</p>
+                      <p>{props.data.descripcion}</p>
                     </div>
                     <button
                       href={"/servicio/" + props.data.id}
@@ -51,4 +60,4 @@ const UnicoServicio = props => {
   );
 };
 
-export default UnicoServicio;
+export default SingleServicio;

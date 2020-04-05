@@ -7,15 +7,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.imageio.ImageIO;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.imgscalr.Scalr;
 import org.imgscalr.Scalr.Method;
 import org.imgscalr.Scalr.Mode;
 import org.joda.time.DateTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,7 +43,7 @@ import com.yotereparo.util.error.CustomResponseError;
 @Transactional 
 public class ServiceManagerImpl implements ServiceManager {
 	
-	private static final Logger logger = LogManager.getLogger(ServiceManagerImpl.class);
+	private static final Logger logger = LoggerFactory.getLogger(ServiceManagerImpl.class);
 	
 	@Autowired
 	private ServiceDaoImpl dao;
@@ -49,10 +51,14 @@ public class ServiceManagerImpl implements ServiceManager {
     private MessageSource messageSource;
 	@Autowired
     private UserService userService;
+	@Autowired
+	private DistrictService districtService;
+	@Autowired
+	private CityService cityService;
 	
 	@Override
 	public void createService(Service service) {
-		if (userService.isPrestador(service.getUsuarioPrestador()))
+		if (userService.isProvider(service.getUsuarioPrestador()))
 			if (service.getUsuarioPrestador().getDirecciones() != null && service.getUsuarioPrestador().getDirecciones().size() != 0) {
 				service.setFechaCreacion(new DateTime());
 				// No cargamos imagenes en tiempo de creacion, siempre usar el metodo dedicado
@@ -64,11 +70,11 @@ public class ServiceManagerImpl implements ServiceManager {
 				dao.persist(service);
 			}
 			else {
-				logger.info(String.format("Service <%s> can't be created. User <%s> has no registered address", service.getTitulo(), service.getUsuarioPrestador().getId()));
+				logger.debug(String.format("Service <%s> can't be created. User <%s> has no registered address", service.getTitulo(), service.getUsuarioPrestador().getId()));
 				throw new CustomResponseError("Service","usuarioPrestador",messageSource.getMessage("service.usuarioPrestador.addresses.is.empty", new String[]{service.getUsuarioPrestador().getId()}, Locale.getDefault()));
 			}
 		else {
-			logger.info(String.format("Service <%s> can't be created. User <%s> is not of type Prestador", service.getTitulo(), service.getUsuarioPrestador().getId()));
+			logger.debug(String.format("Service <%s> can't be created. User <%s> is not of type Prestador", service.getTitulo(), service.getUsuarioPrestador().getId()));
 			throw new CustomResponseError("Service","usuarioPrestador",messageSource.getMessage("service.usuarioPrestador.unauthorized", new String[]{service.getUsuarioPrestador().getId()}, Locale.getDefault()));
 		}
 			
@@ -226,33 +232,37 @@ public class ServiceManagerImpl implements ServiceManager {
 	
 	/*
 	 *  Actualiza la imagen y el thumbnail del Servicio haciendo un resize de la imagen suscripta,
-	 *  si el procesamiento del thumbnail levanta excepcion, no suscribe la actualizacion
-	 *  de la imagen. Si la imagen es nula, eliminamos la imagen y thumbnail actual del servicio.
+	 *  Si el parámetro <image> es nulo, eliminamos la imagen y thumbnail actual del servicio.
 	 */
 	@Override
 	public void updateServiceImageById(Integer id, byte[] image) {
 		Service entity = dao.getServiceById(id);
 		if (image != null) {
 	        try {
-	        	logger.debug(String.format("Updating attribute 'Imagen' from service <%s>",id));
-	        	entity.setImagen(image);
-	        	
-				// construye y guarda el thumbnail a partir de la foto suscripta
-	        	logger.debug("Building thumbnail from input image");
+	        	// Reformateamos la imagen suscripta para normalizar archivos muy grandes, y generamos el thumbnail
 	        	InputStream is = new ByteArrayInputStream(image);
 		        BufferedImage img = ImageIO.read(is);
-		        BufferedImage thumbImg = Scalr.resize(img, Method.ULTRA_QUALITY,
+		        logger.debug("Resizing input image");
+		        BufferedImage serviceImage = Scalr.resize(img, Method.ULTRA_QUALITY,
+	                    Mode.AUTOMATIC, 1000, 1000);
+		        logger.debug("Building thumbnail from input image");
+		        BufferedImage serviceThumbnail = Scalr.resize(img, Method.ULTRA_QUALITY,
 	                    Mode.AUTOMATIC, 100, 100);
 		        
 		        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-	        	ImageIO.write(thumbImg, "png", baos);
-	        	
+		        ImageIO.write(serviceImage, "png", baos);
+		        logger.debug(String.format("Updating attribute 'Imagen' from service <%s>",id));
+		        entity.setImagen(baos.toByteArray());
+		        
+		        baos.reset();
+	        	ImageIO.write(serviceThumbnail, "png", baos);
 	        	logger.debug(String.format("Updating attribute 'Thumbnail' from service <%s>",id));
 		        entity.setThumbnail(baos.toByteArray());
 		        
 		        img.flush();
-		        thumbImg.flush();
-		        baos.close();		        
+		        serviceImage.flush();
+		        serviceThumbnail.flush();
+		        baos.close();
 	        }
 	        catch (IOException e) {
 	        	logger.error("IOException: "+e.getMessage());
@@ -291,27 +301,35 @@ public class ServiceManagerImpl implements ServiceManager {
 	}
 	
 	@Override
-	public List<Service> getAllServices(Object filter) {
+	public List<Service> getAllServices(Map<String,String> filters) {
 		List<Service> services = null;
-		if (filter != null)
-			switch (filter.getClass().getSimpleName()) {
-				case "User":
-					User user = (User) filter;
-					logger.debug("Fetching all services by user: <"+user.getId()+">");
+		Entry <String, String> filter = filters.entrySet().iterator().next();
+		String filterKey = filter.getKey().toLowerCase();
+		String filterValue = filter.getValue().toLowerCase();
+		switch (filterKey) {
+			case "user":
+				User user = userService.getUserById(filterValue);
+				logger.debug("Fetching all services by user: <"+filterValue+">");
+				if (user != null)
 					services = dao.getAllServices(user);
-					break;
-				case "District":
-					District district = (District) filter;
-					logger.debug("Fetching all services by district: <"+district.getDescripcion()+">");
-					services = dao.getAllServices(district);
-					break;
-				case "City":
-					City city = (City) filter;
-					logger.debug("Fetching all services by city: <"+city.getId()+">");
-					services = dao.getAllServices((City) filter);
-					break;
-				// TODO: más filtros y filtro compuesto
-			}
+				break;
+			case "district":
+				try {
+					District district = districtService.getDistrictById(Integer.parseInt(filterValue));
+					logger.debug("Fetching all services by district: <"+filterValue+">");
+					if (district != null)
+						services = dao.getAllServices(district);
+				}
+				catch (NumberFormatException e) { }
+				break;
+			case "city":
+				City city = cityService.getCityById(filterValue);
+				logger.debug("Fetching all services by city: <"+filterValue+">");
+				if (city != null)
+					services = dao.getAllServices(city);
+				break;
+			// TODO: más filtros y filtro compuesto
+		}
 		return services;
 	}
 }

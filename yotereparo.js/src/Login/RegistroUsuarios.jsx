@@ -8,19 +8,25 @@ import {
   FormFeedback,
   Label,
   Input,
-  FormText
+  FormText,
 } from "reactstrap";
 import ElementContainer from "../Container/ElementContainer";
 import { useHistory } from "react-router-dom";
 import Axios from "axios";
 import "../Login/RegistroUsuarios.css";
+import { fetchData } from "../Utils/SessionHandlers";
+import { validateEmail, validatePassword } from "../Utils/Security";
+import { deleteSessionCookie } from "../Utils/SessionManage";
+import { processErrors } from "../Utils/Errors";
+import { intersect } from "../Utils/ArrayUtils";
+import Errors from "../Errors/Errors";
 
-const FormRegistro = props => {
+const FormRegistro = (props) => {
   let isFormEmpleador = props.type === "empleador" ? true : false;
   // let isFormUsuario = props.type === "usuario" ? true : false;
 
   let history = useHistory();
-  let membresiaObject = isFormEmpleador ? "BASICA" : null;
+  let membresiaObject = isFormEmpleador ? "GRATUITA" : null;
 
   let [account, setAccount] = useState({
     email: "",
@@ -28,20 +34,31 @@ const FormRegistro = props => {
     nombre: "",
     apellido: "",
     ciudad: "",
+    barrios: "",
     validate: {
       emailState: "",
-      passwordState: true
-    }
+      passwordState: true,
+    },
   });
-
+  let [direccion, setDireccion] = useState({
+    calle: "",
+    altura: 0,
+    piso: "",
+    departamento: "",
+    descripcion: "",
+  });
+  let [cities, setCities] = useState([]);
+  let [hoods, setHoods] = useState([]);
+  let [hoodsDisabled, toggleHoods] = useState(true);
   let [formErrors, setErrors] = useState({
-    errors: []
+    errors: [],
   });
 
   let [isCreatingUser, setIsCreatingUser] = useState(false);
 
   let [infomessage, setMessage] = useState("");
 
+  //For the account
   useEffect(() => {
     if (account["validate"].emailState === "") {
       setMessage("Ingresa los datos necesarios...");
@@ -50,112 +67,145 @@ const FormRegistro = props => {
     }
   }, [account]);
 
-  let handleSubmit = event => {
+  //For the cities and the API
+  useEffect(() => {
+    fetchData(`http://localhost:8080/YoTeReparo/cities`, (citiesData) => {
+      citiesData.forEach((city) => {
+        setCities((cities) => [
+          ...cities,
+          { id: city.id, desc: city.descripcion },
+        ]);
+      });
+    });
+  }, []);
+
+  //Fetch hoods for only one city
+  let handleSubmit = (event) => {
     event.preventDefault();
 
     setIsCreatingUser(true);
 
+    let requestData = {};
+
+    if (isFormEmpleador) {
+      let barriosSelected = intersect(hoods, account.barrios);
+
+      requestData = {
+        id: account.nombre + account.apellido,
+        nombre: account.nombre,
+        apellido: account.apellido,
+        ciudad: account.ciudad,
+        barrios: barriosSelected,
+        direcciones: [direccion],
+        email: account.email,
+        contrasena: account.password,
+        membresia: membresiaObject,
+      };
+    } else {
+      requestData = {
+        id: account.nombre + account.apellido,
+        nombre: account.nombre,
+        apellido: account.apellido,
+        ciudad: account.ciudad,
+        email: account.email,
+        contrasena: account.password,
+        membresia: membresiaObject,
+      };
+    }
+
     //TODO: SET membresia en funcion del formulario de entrada
 
-    let requestData = {
-      id: account.nombre + account.apellido,
-      nombre: account.nombre,
-      apellido: account.apellido,
-      ciudad: account.ciudad,
-      email: account.email,
-      contrasena: account.password,
-      membresia: membresiaObject
-    };
-
-    let requestHeaders = {
-      "Access-Control-Allow-Origin": "*"
+    let requestConfig = {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+      },
     };
 
     Axios.post(
-      "http://localhost:8080/YoTeReparo/users/",
+      "http://localhost:8080/YoTeReparo/auth/signup",
       requestData,
-      requestHeaders
+      requestConfig
     )
-      .then(response => {
+      .then((response) => {
         console.log(response.status);
         if (response.status === 400) {
           console.log(response.json);
         } else {
+          deleteSessionCookie("userSession");
           history.push({
             pathname: "/tour",
-            state: { user: account }
+            state: { user: account },
           });
         }
       })
-      .catch(error => {
-        processErrors(error.response);
+      .catch((error) => {
+        let errors = processErrors(error.response.data);
+        setErrors({ ...formErrors, errors });
         setIsCreatingUser(false);
       });
   };
 
-  let processErrors = incomingErrors => {
-    let errors = [];
-
-    if (incomingErrors.data.length >= 1) {
-      incomingErrors.data.forEach(error => {
-        errors.push({
-          type: error.field,
-          message: error.defaultMessage
-        });
-      });
-    } else {
-      errors.push({
-        type: incomingErrors.data.field,
-        message: incomingErrors.data.defaultMessage
-      });
-    }
-
-    setErrors({ ...formErrors, errors });
-  };
-
-  let handleChange = async event => {
+  let handleChange = async (event) => {
     account[event.target.name] = event.target.value;
+
     setAccount({ ...account, [event.target.name]: event.target.value });
-  };
 
-  let validateEmail = event => {
-    const emailRex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-    if (emailRex.test(event.target.value)) {
-      account["validate"].emailState = "success";
-    } else {
-      account["validate"].emailState = "danger";
+    if (event.target.name === "ciudad" && isFormEmpleador) {
+      fetchData(
+        `http://localhost:8080/YoTeReparo/cities/${account.ciudad}`,
+        (data) => {
+          let barriosXciudad = [];
+
+          data.barrios.forEach((barrio) => {
+            barriosXciudad.push({
+              id: barrio.id,
+              descripcion: barrio.descripcion,
+              codigoPostal: barrio.codigoPostal,
+            });
+          });
+
+          barriosXciudad.length > 0 ? toggleHoods(false) : toggleHoods(true);
+
+          if (barriosXciudad.length > 0) {
+            account["barrios"] = barriosXciudad[0].id;
+          } else {
+          }
+
+          setHoods(barriosXciudad);
+        }
+      );
+    }
+
+    if (event.target.name === "barrios") {
+      var options = event.target.options;
+      var value = [];
+      for (var i = 0, l = options.length; i < l; i++) {
+        if (options[i].selected) {
+          value.push(parseInt(options[i].value));
+        }
+      }
+      setAccount({ ...account, [event.target.name]: value });
     }
   };
 
-  let validatePassword = event => {
-    var strongRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})");
-    if (strongRegex.test(event.target.value)) {
-      account["validate"].passwordState = "success";
-    } else {
-      account["validate"].passwordState = "danger";
-    }
-  };
-
-  let updateMembresia = event => {
-    console.log(event.target.value);
+  let updateMembresia = (event) => {
     switch (event.target.value) {
       case "1":
-        membresiaObject = "BASICA";
+        membresiaObject = "GRATUITA";
         break;
       case "2":
-        membresiaObject = "PREMIUM";
+        membresiaObject = "PLATA";
         break;
       case "3":
-        membresiaObject = "GOLD";
+        membresiaObject = "ORO";
         break;
       default:
         break;
     }
-    console.log(membresiaObject);
   };
 
   return (
-    <div className="centered card-center-form">
+    <div className="registercentered card-center-form">
       <div className="row">
         <div className="col-md-12">
           <ElementContainer>
@@ -168,20 +218,7 @@ const FormRegistro = props => {
                 )}
               </div>
             </div>
-            {formErrors.errors.length >= 1 ? (
-              <div className="errors-list">
-                {formErrors.errors.map((error, i) => (
-                  <p key={i} className="font-weight-light">
-                    <span className="fa-stack fa-1x">
-                      <i className={`fas fa-times fa-stack-1x`}></i>
-                    </span>{" "}
-                    {error.message}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <></>
-            )}
+            <Errors formErrors={formErrors}></Errors>
             <Form onSubmit={handleSubmit}>
               <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
                 <Label for="nombreLabel" className="mr-sm-2 font-weight-bold">
@@ -192,7 +229,7 @@ const FormRegistro = props => {
                   name="nombre"
                   id="nombreLabel"
                   placeholder="Tu nombre..."
-                  onChange={e => {
+                  onChange={(e) => {
                     handleChange(e);
                   }}
                 />
@@ -206,7 +243,7 @@ const FormRegistro = props => {
                   name="apellido"
                   id="apellidoLabel"
                   placeholder="Tu apellido..."
-                  onChange={e => {
+                  onChange={(e) => {
                     handleChange(e);
                   }}
                 />
@@ -220,17 +257,158 @@ const FormRegistro = props => {
                   name="ciudad"
                   id="ciudadLabel"
                   defaultValue=""
-                  onChange={e => {
+                  onChange={(e) => {
                     handleChange(e);
                   }}
                 >
                   <option value="" disabled hidden>
                     Selecciona una ciudad
                   </option>
-                  <option value="rosario">Rosario</option>
-                  <option value="cordoba">Cordoba</option>
+                  {cities.map((city) => (
+                    <option key={city.id} value={city.id}>
+                      {city.desc}
+                    </option>
+                  ))}
                 </Input>
               </FormGroup>
+              {isFormEmpleador ? (
+                <>
+                  <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                    <Label
+                      for="ciudadLabel"
+                      className="mr-sm-2 font-weight-bold"
+                    >
+                      BARRIOS
+                    </Label>
+                    <Input
+                      multiple={isFormEmpleador}
+                      type="select"
+                      name="barrios"
+                      id="barriosLabel"
+                      onChange={(e) => {
+                        handleChange(e);
+                      }}
+                      disabled={hoodsDisabled}
+                    >
+                      <option value="" disabled hidden>
+                        Selecciona un barrio
+                      </option>
+                      {hoods.map((hood) => (
+                        <option key={hood.id} value={hood.id}>
+                          {hood.descripcion}
+                        </option>
+                      ))}
+                    </Input>
+                  </FormGroup>
+                  <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                    <div className="row">
+                      <div className="col-md-6">
+                        <Label
+                          for="direccionLabelCalle"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          CALLE
+                        </Label>
+                        <Input
+                          type="text"
+                          name="calle"
+                          id="calle"
+                          onChange={(e) => {
+                            setDireccion({
+                              ...direccion,
+                              [e.target.name]: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="col-md-2">
+                        <Label
+                          for="direccionLabelPiso"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          PISO
+                        </Label>
+                        <Input
+                          type="text"
+                          name="piso"
+                          id="piso"
+                          onChange={(e) => {
+                            setDireccion({
+                              ...direccion,
+                              [e.target.name]: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="col-md-2">
+                        {" "}
+                        <Label
+                          for="direccionLabelaltura"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          ALTURA
+                        </Label>
+                        <Input
+                          type="number"
+                          name="altura"
+                          id="altura"
+                          onChange={(e) => {
+                            setDireccion({
+                              ...direccion,
+                              [e.target.name]: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="col-md-2">
+                        {" "}
+                        <Label
+                          for="direccionLabeldepartamento"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          DEPARTAMENTO
+                        </Label>
+                        <Input
+                          type="text"
+                          name="departamento"
+                          id="departamento"
+                          onChange={(e) => {
+                            setDireccion({
+                              ...direccion,
+                              [e.target.name]: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-md-12 mt-2">
+                        {" "}
+                        <Label
+                          for="direccionLabeldescripcion"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          DESCRIPCION
+                        </Label>
+                        <Input
+                          type="text"
+                          name="descripcion"
+                          id="descripcion"
+                          onChange={(e) => {
+                            setDireccion({
+                              ...direccion,
+                              [e.target.name]: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </FormGroup>
+                </>
+              ) : (
+                <></>
+              )}
+
               <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
                 <Label for="emailLabel" className="mr-sm-2 font-weight-bold">
                   EMAIL
@@ -242,9 +420,9 @@ const FormRegistro = props => {
                   name="email"
                   id="emailLabel"
                   placeholder="tuemail@email.com"
-                  onChange={e => {
+                  onChange={(e) => {
                     handleChange(e);
-                    validateEmail(e);
+                    validateEmail(e, account);
                   }}
                 />
                 <FormFeedback className="lead box-message-letter">
@@ -262,9 +440,9 @@ const FormRegistro = props => {
                   name="password"
                   id="passwordLabel"
                   placeholder="********"
-                  onChange={e => {
+                  onChange={(e) => {
                     handleChange(e);
-                    validatePassword(e);
+                    validatePassword(e, account);
                   }}
                 />
                 <FormFeedback className="lead box-message-letter">
@@ -288,16 +466,16 @@ const FormRegistro = props => {
                   ></CustomInput>
                   <div className="row text-center membership">
                     <div className="col-4">
-                      <div className="small membership-text">BASICA</div>
+                      <div className="small membership-text">GRATUITA</div>
                     </div>
 
                     <div className="col-4">
                       {" "}
-                      <div className="small membership-text">PREMIUM</div>
+                      <div className="small membership-text">PLATA</div>
                     </div>
                     <div className="col-4">
                       {" "}
-                      <div className="small membership-text">GOLD</div>
+                      <div className="small membership-text">ORO</div>
                     </div>
                   </div>
                 </FormGroup>

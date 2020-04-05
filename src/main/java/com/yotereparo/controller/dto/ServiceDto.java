@@ -11,13 +11,17 @@ import javax.validation.constraints.Size;
 
 import org.joda.time.DateTime;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import com.yotereparo.model.PaymentMethod;
 import com.yotereparo.model.Requirement;
 import com.yotereparo.util.customvalidator.GreaterThan;
 
-@GreaterThan(valueOf = "precioMaximo", greaterThanValueOf = "precioMinimo", message = "{sservice.precioMaximo.less.than.precioMinimo}")
+@GreaterThan(valueOf = "precioMaximo", greaterThanValueOf = "precioMinimo", message = "{service.precioMaximo.less.than.precioMinimo}")
 public class ServiceDto {
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private Integer id;
 	
 	@NotEmpty(message = "{service.usuarioPrestador.not.empty}")
@@ -31,9 +35,10 @@ public class ServiceDto {
 	private String titulo;
 	
 	@NotEmpty(message = "{service.descripcion.not.empty}")
-	@Size(max = 255, message = "{service.titulo.too.long}")
+	@Size(max = 255, message = "{service.descripcion.too.long}")
 	private String descripcion;
 	
+	@Size(max = 255, message = "{service.disponibilidad.too.long}")
 	private String disponibilidad;
 	
 	@NotNull(message = "{service.precioMaximo.not.null}")
@@ -46,8 +51,7 @@ public class ServiceDto {
 	@Min(value = 0, message="{service.precioMinimo.less.than.min}")
 	private Float precioMinimo;
 
-	@Digits(integer = 9, fraction = 2, message = "{service.precioPromedio.out.of.boundaries}")
-	@Min(value = 0, message="{service.precioPromedio.less.than.min}")
+	@JsonProperty(access = Access.READ_ONLY)
 	private Float precioPromedio;
 
 	@Digits(integer = 9, fraction = 2, message = "{service.precioInsumos.out.of.boundaries}")
@@ -73,8 +77,10 @@ public class ServiceDto {
 	@NotEmpty(message = "{service.tipoServicio.not.empty}")
 	private String tipoServicio;
 	
+	@JsonProperty(access = Access.READ_ONLY)
 	private DateTime fechaCreacion;
 
+	@JsonProperty(access = Access.READ_ONLY)
 	private String estado;
 
 	@NotEmpty(message = "{service.mediosDePago.not.empty}")
@@ -82,8 +88,12 @@ public class ServiceDto {
 	
 	private Set<Requirement> requerimientos = new HashSet<Requirement>(0);
 	
+	@JsonProperty(access = Access.READ_ONLY)
+	private Set<QuoteDto> presupuestos = new HashSet<QuoteDto>(0);
+	
 	public ServiceDto() { }
 
+	@JsonIgnore
 	public Integer getId() {
 		return id;
 	}
@@ -140,6 +150,7 @@ public class ServiceDto {
 		this.precioMinimo = precioMinimo;
 	}
 
+	@JsonIgnore
 	public Float getPrecioPromedio() {
 		return precioPromedio;
 	}
@@ -195,7 +206,8 @@ public class ServiceDto {
 	public void setTipoServicio(String tipoServicio) {
 		this.tipoServicio = tipoServicio;
 	}
-
+	
+	@JsonIgnore
 	public DateTime getFechaCreacion() {
 		return fechaCreacion;
 	}
@@ -204,6 +216,7 @@ public class ServiceDto {
 		this.fechaCreacion = fechaCreacion;
 	}
 
+	@JsonIgnore
 	public String getEstado() {
 		return estado;
 	}
@@ -227,6 +240,23 @@ public class ServiceDto {
 	public void setRequerimientos(Set<Requirement> requerimientos) {
 		this.requerimientos = requerimientos;
 	}
+	
+	@JsonIgnore
+	public Set<QuoteDto> getPresupuestos() {
+		return presupuestos;
+	}
+
+	public void setPresupuestos(Set<QuoteDto> presupuestos) {
+		this.presupuestos = presupuestos;
+	}
+	
+	public void addPresupuesto(QuoteDto presupuesto) {
+		this.presupuestos.add(presupuesto);
+	}
+	
+	public void removePresupuesto(QuoteDto presupuesto) {
+		this.presupuestos.remove(presupuesto);
+	}
 
 	@Override
 	public int hashCode() {
@@ -241,6 +271,7 @@ public class ServiceDto {
 		result = prime * result + ((horasEstimadasEjecucion == null) ? 0 : horasEstimadasEjecucion.hashCode());
 		result = prime * result + ((mediosDePago == null) ? 0 : mediosDePago.hashCode());
 		result = prime * result + ((requerimientos == null) ? 0 : requerimientos.hashCode());
+		result = prime * result + ((presupuestos == null) ? 0 : presupuestos.hashCode());
 		result = prime * result + ((precioAdicionales == null) ? 0 : precioAdicionales.hashCode());
 		result = prime * result + ((precioInsumos == null) ? 0 : precioInsumos.hashCode());
 		result = prime * result + ((precioMaximo == null) ? 0 : precioMaximo.hashCode());
@@ -302,6 +333,11 @@ public class ServiceDto {
 				return false;
 		} else if (!requerimientos.equals(other.requerimientos))
 			return false;
+		if (presupuestos == null) {
+			if (other.presupuestos != null)
+				return false;
+		} else if (!presupuestos.equals(other.presupuestos))
+			return false;
 		if (precioAdicionales == null) {
 			if (other.precioAdicionales != null)
 				return false;
@@ -349,6 +385,6 @@ public class ServiceDto {
 				+ ", horasEstimadasEjecucion=" + horasEstimadasEjecucion + ", cantidadTrabajadores="
 				+ cantidadTrabajadores + ", facturaEmitida=" + facturaEmitida + ", tipoServicio=" + tipoServicio
 				+ ", fechaCreacion=" + fechaCreacion + ", estado=" + estado + ", mediosDePago=" + mediosDePago
-				+ ", requerimientos=" + requerimientos + "]";
+				+ ", requerimientos=" + requerimientos + ", presupuestos=" + presupuestos + "]";
 	}
 }

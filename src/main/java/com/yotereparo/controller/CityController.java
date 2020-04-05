@@ -3,14 +3,14 @@ package com.yotereparo.controller;
 import java.util.List;
 import java.util.Locale;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -25,22 +25,25 @@ import com.yotereparo.util.MiscUtils;
  * @author Rodrigo Yanis
  * 
  */
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 public class CityController {
 	
-	private static final Logger logger = LogManager.getLogger(CityController.class);
+	private static final Logger logger = LoggerFactory.getLogger(CityController.class);
 	
 	@Autowired
     CityService cityService;
 	@Autowired
     MessageSource messageSource;
+	@Autowired
+	MiscUtils miscUtils;
 
 	/*
 	 * Devuelve todas las ciudades registradas en formato JSON.
 	 */
 	@RequestMapping(
-			value = { "/cities" }, 
-			produces = MediaType.APPLICATION_JSON_VALUE, 
+			value = { "/cities" },
+			produces = "application/json; charset=UTF-8", 
 			method = RequestMethod.GET)
 	public ResponseEntity<?> listCities() {
 		logger.info("ListCities - GET - Processing request for a list with all existing cities.");
@@ -52,14 +55,14 @@ public class CityController {
                 return new ResponseEntity<List<City>>(cities, HttpStatus.OK);
             }
             else {
-            	logger.info("ListCities - GET - Request failed - No cities were found.");
+            	logger.warn("ListCities - GET - Request failed - No cities were found.");
             	return new ResponseEntity<List<City>>(HttpStatus.NO_CONTENT);
             }
         }
 		catch (Exception e) {
-			logger.error("ListCities - GET - Request failed - Error procesing request: <%s>", e);
+			logger.error("ListCities - GET - Request failed - Error procesing request: ", e);
 			FieldError error = new FieldError("City","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
-			return new ResponseEntity<>(MiscUtils.getFormatedResponseError(error).toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}   
     }
 	
@@ -68,7 +71,7 @@ public class CityController {
 	 */
 	@RequestMapping(
 			value = { "/cities/{id}" }, 
-			produces = MediaType.APPLICATION_JSON_VALUE, 
+			produces = "application/json; charset=UTF-8", 
 			method = RequestMethod.GET)
 	public ResponseEntity<?> getCity(@PathVariable("id") String id) {
 		id = id.toLowerCase();
@@ -81,15 +84,15 @@ public class CityController {
                 return new ResponseEntity<City>(city, HttpStatus.OK);
             }
             else {
-            	logger.info(String.format("GetCity - GET - Request failed - City with id <%s> not found.", id));
+            	logger.warn(String.format("GetCity - GET - Request failed - City with id <%s> not found.", id));
                 FieldError error = new FieldError("City","error",messageSource.getMessage("city.doesnt.exist", new String[]{id}, Locale.getDefault()));
-                return new ResponseEntity<>(MiscUtils.getFormatedResponseError(error).toString(), HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
             } 
         }
         catch (Exception e) {
 			logger.error("GetCity - GET - Request failed - Error procesing request: ", e);
 			FieldError error = new FieldError("City","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
-			return new ResponseEntity<>(MiscUtils.getFormatedResponseError(error).toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}  
     }
 }

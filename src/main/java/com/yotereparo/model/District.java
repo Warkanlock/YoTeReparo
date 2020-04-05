@@ -6,7 +6,6 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
-import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 
 @Entity
@@ -18,11 +17,10 @@ public class District {
 	@Column(name = "id_barrio", nullable = false)
 	private Integer id;
 	
-	@NotEmpty(message = "{district.descripcion.not.empty}")
 	private String descripcion;
 	
-	@Min(value=1000, message = "{district.codigopostal.min.value}")
-	@Max(value=9999, message = "{district.codigopostal.max.value}")
+	@Min(value=1000, message = "{district.codigopostal.less.than.min}")
+	@Max(value=9999, message = "{district.codigopostal.greater.than.max}")
 	@Column(name = "codigo_postal", nullable = false)
 	private Integer codigoPostal;
 	
