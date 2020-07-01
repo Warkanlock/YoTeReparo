@@ -20,6 +20,7 @@ import { deleteSessionCookie } from "../Utils/SessionManage";
 import { processErrors } from "../Utils/Errors";
 import { intersect } from "../Utils/ArrayUtils";
 import Errors from "../Errors/Errors";
+import { useRef } from "react";
 
 const FormRegistro = (props) => {
   let isFormEmpleador = props.type === "empleador" ? true : false;
@@ -29,6 +30,7 @@ const FormRegistro = (props) => {
   let membresiaObject = isFormEmpleador ? "GRATUITA" : null;
 
   let [account, setAccount] = useState({
+    id: "",
     email: "",
     password: "",
     nombre: "",
@@ -57,6 +59,7 @@ const FormRegistro = (props) => {
   let [isCreatingUser, setIsCreatingUser] = useState(false);
 
   let [infomessage, setMessage] = useState("");
+  let [passwordCheck, setPasswordCheck] = useState("");
 
   //For the account
   useEffect(() => {
@@ -69,13 +72,15 @@ const FormRegistro = (props) => {
 
   //For the cities and the API
   useEffect(() => {
-    fetchData(`http://localhost:8080/YoTeReparo/cities`, (citiesData) => {
-      citiesData.forEach((city) => {
-        setCities((cities) => [
-          ...cities,
-          { id: city.id, desc: city.descripcion },
-        ]);
-      });
+    fetchData(`/YoTeReparo/cities`, (citiesData) => {
+      if (citiesData != null) {
+        citiesData.forEach((city) => {
+          setCities((cities) => [
+            ...cities,
+            { id: city.id, desc: city.descripcion },
+          ]);
+        });
+      }
     });
   }, []);
 
@@ -83,15 +88,29 @@ const FormRegistro = (props) => {
   let handleSubmit = (event) => {
     event.preventDefault();
 
+    if (account.password !== passwordCheck) {
+      let errors = [
+        {
+          type: "securityCheck",
+          message: "Las contraseñas no son iguales",
+        },
+      ];
+      setErrors({ ...formErrors, errors });
+      return;
+    }
+
     setIsCreatingUser(true);
 
     let requestData = {};
 
     if (isFormEmpleador) {
-      let barriosSelected = intersect(hoods, account.barrios);
+      var barriosSelected = [];
+      if (account.barrios.length > 0) {
+        barriosSelected = intersect(hoods, account.barrios);
+      }
 
       requestData = {
-        id: account.nombre + account.apellido,
+        id: account.id,
         nombre: account.nombre,
         apellido: account.apellido,
         ciudad: account.ciudad,
@@ -103,10 +122,11 @@ const FormRegistro = (props) => {
       };
     } else {
       requestData = {
-        id: account.nombre + account.apellido,
+        id: account.id,
         nombre: account.nombre,
         apellido: account.apellido,
         ciudad: account.ciudad,
+        direcciones: [direccion],
         email: account.email,
         contrasena: account.password,
         membresia: membresiaObject,
@@ -121,11 +141,7 @@ const FormRegistro = (props) => {
       },
     };
 
-    Axios.post(
-      "http://localhost:8080/YoTeReparo/auth/signup",
-      requestData,
-      requestConfig
-    )
+    Axios.post("/YoTeReparo/auth/signup", requestData, requestConfig)
       .then((response) => {
         console.log(response.status);
         if (response.status === 400) {
@@ -151,29 +167,26 @@ const FormRegistro = (props) => {
     setAccount({ ...account, [event.target.name]: event.target.value });
 
     if (event.target.name === "ciudad" && isFormEmpleador) {
-      fetchData(
-        `http://localhost:8080/YoTeReparo/cities/${account.ciudad}`,
-        (data) => {
-          let barriosXciudad = [];
+      fetchData(`/YoTeReparo/cities/${account.ciudad}`, (data) => {
+        let barriosXciudad = [];
 
-          data.barrios.forEach((barrio) => {
-            barriosXciudad.push({
-              id: barrio.id,
-              descripcion: barrio.descripcion,
-              codigoPostal: barrio.codigoPostal,
-            });
+        data.barrios.forEach((barrio) => {
+          barriosXciudad.push({
+            id: barrio.id,
+            descripcion: barrio.descripcion,
+            codigoPostal: barrio.codigoPostal,
           });
+        });
 
-          barriosXciudad.length > 0 ? toggleHoods(false) : toggleHoods(true);
+        barriosXciudad.length > 0 ? toggleHoods(false) : toggleHoods(true);
 
-          if (barriosXciudad.length > 0) {
-            account["barrios"] = barriosXciudad[0].id;
-          } else {
-          }
-
-          setHoods(barriosXciudad);
+        if (barriosXciudad.length > 0) {
+          account["barrios"] = barriosXciudad[0].id;
+        } else {
         }
-      );
+
+        setHoods(barriosXciudad);
+      });
     }
 
     if (event.target.name === "barrios") {
@@ -204,6 +217,28 @@ const FormRegistro = (props) => {
     }
   };
 
+  const clearAll = () => {
+    var elements = document.getElementsByTagName("input");
+
+    for (var ii = 0; ii < elements.length; ii++) {
+      if (elements[ii].type === "text") {
+        elements[ii].value = "";
+      } else if (elements[ii].type === "number") {
+        elements[ii].value = 0;
+      }
+    }
+
+  };
+
+  const refBarrios = useRef([React.createRef()]);
+
+  const clearBarrios = () => {
+    var elements = refBarrios.current.options;
+    for (var i = 0; i < elements.length; i++) {
+      elements[i].selected = false;
+    }
+  };
+
   return (
     <div className="registercentered card-center-form">
       <div className="row">
@@ -212,14 +247,35 @@ const FormRegistro = (props) => {
             <div className="text-center">
               <div className="lead mb-2">
                 {isFormEmpleador ? (
-                  <strong>REGISTRARSE COMO TRABAJADOR</strong>
+                  <strong>REGISTRARSE COMO PRESTADOR </strong>
                 ) : (
-                  <strong>REGISTRARSE COMO USUARIO</strong>
+                  <strong>REGISTRARSE COMO CLIENTE </strong>
                 )}
+                <Button size="sm" color="info" onClick={clearAll}>
+                   Limpiar Seleccion
+                </Button>                
               </div>
             </div>
             <Errors formErrors={formErrors}></Errors>
             <Form onSubmit={handleSubmit}>
+              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                <Label for="usernameLabel" className="mr-sm-2 font-weight-bold">
+                  USUARIO
+                </Label>
+                <Input
+                  type="text"
+                  name="id"
+                  style={{ textTransform: "lowercase" }}
+                  id="usernameLabel"
+                  placeholder="Tu Nombre de usuario..."
+                  minLength="5"
+                  maxLength="15"
+                  onChange={(e) => {
+                    handleChange(e);
+                  }}
+                  required
+                />
+              </FormGroup>
               <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
                 <Label for="nombreLabel" className="mr-sm-2 font-weight-bold">
                   NOMBRE
@@ -271,18 +327,138 @@ const FormRegistro = (props) => {
                   ))}
                 </Input>
               </FormGroup>
-              {isFormEmpleador ? (
-                <>
-                  <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+
+              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                <div className="row">
+                  <div className="col-md-6">
                     <Label
-                      for="ciudadLabel"
+                      for="direccionLabelCalle"
                       className="mr-sm-2 font-weight-bold"
                     >
-                      BARRIOS
+                      CALLE
                     </Label>
+                    <Input
+                      type="text"
+                      name="calle"
+                      id="calle"
+                      onChange={(e) => {
+                        setDireccion({
+                          ...direccion,
+                          [e.target.name]: e.target.value,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="col-md-2">
+                    {" "}
+                    <Label
+                      for="direccionLabelaltura"
+                      className="mr-sm-2 font-weight-bold"
+                    >
+                      ALTURA
+                    </Label>
+                    <Input
+                      type="number"
+                      name="altura"
+                      id="altura"
+                      onChange={(e) => {
+                        setDireccion({
+                          ...direccion,
+                          [e.target.name]: e.target.value,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="col-md-2">
+                    <Label
+                      for="direccionLabelPiso"
+                      className="mr-sm-2 font-weight-bold"
+                    >
+                      PISO
+                    </Label>
+                    <Input
+                      type="text"
+                      name="piso"
+                      id="piso"
+                      onChange={(e) => {
+                        setDireccion({
+                          ...direccion,
+                          [e.target.name]: e.target.value,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="col-md-2">
+                    {" "}
+                    <Label
+                      for="direccionLabeldepartamento"
+                      className="mr-sm-2 font-weight-bold"
+                    >
+                      DEPARTAMENTO
+                    </Label>
+                    <Input
+                      type="text"
+                      name="departamento"
+                      id="departamento"
+                      onChange={(e) => {
+                        setDireccion({
+                          ...direccion,
+                          [e.target.name]: e.target.value,
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="col-md-12 mt-2">
+                    {" "}
+                    <Label
+                      for="direccionLabeldescripcion"
+                      className="mr-sm-2 font-weight-bold"
+                    >
+                      DESCRIPCION DIRECCIÓN
+                    </Label>
+                    <Input
+                      type="text"
+                      name="descripcion"
+                      id="descripcion"
+                      onChange={(e) => {
+                        setDireccion({
+                          ...direccion,
+                          [e.target.name]: e.target.value,
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+              </FormGroup>
+              {isFormEmpleador ? (
+                <>
+                <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                <div className="row">
+                  <div className="col-6">
+                    <div className="float-left">
+                    <Label for="ciudadLabel" className="mr-sm-2 font-weight-bold">
+                      BARRIOS EN LOS QUE PRESTAS SERVICIO
+                    </Label>
+                    </div>
+                  </div>
+                  <div className="col-6">
+                    <div className="float-right">
+                      <Button
+                        size="sm"
+                        color="link"
+                        onClick={clearBarrios}
+                      >
+                        Limpiar Seleccion
+                      </Button>
+                      </div>
+                  </div>
+                </div>                   
                     <Input
                       multiple={isFormEmpleador}
                       type="select"
+                      innerRef={refBarrios}
                       name="barrios"
                       id="barriosLabel"
                       onChange={(e) => {
@@ -299,110 +475,6 @@ const FormRegistro = (props) => {
                         </option>
                       ))}
                     </Input>
-                  </FormGroup>
-                  <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
-                    <div className="row">
-                      <div className="col-md-6">
-                        <Label
-                          for="direccionLabelCalle"
-                          className="mr-sm-2 font-weight-bold"
-                        >
-                          CALLE
-                        </Label>
-                        <Input
-                          type="text"
-                          name="calle"
-                          id="calle"
-                          onChange={(e) => {
-                            setDireccion({
-                              ...direccion,
-                              [e.target.name]: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="col-md-2">
-                        <Label
-                          for="direccionLabelPiso"
-                          className="mr-sm-2 font-weight-bold"
-                        >
-                          PISO
-                        </Label>
-                        <Input
-                          type="text"
-                          name="piso"
-                          id="piso"
-                          onChange={(e) => {
-                            setDireccion({
-                              ...direccion,
-                              [e.target.name]: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="col-md-2">
-                        {" "}
-                        <Label
-                          for="direccionLabelaltura"
-                          className="mr-sm-2 font-weight-bold"
-                        >
-                          ALTURA
-                        </Label>
-                        <Input
-                          type="number"
-                          name="altura"
-                          id="altura"
-                          onChange={(e) => {
-                            setDireccion({
-                              ...direccion,
-                              [e.target.name]: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="col-md-2">
-                        {" "}
-                        <Label
-                          for="direccionLabeldepartamento"
-                          className="mr-sm-2 font-weight-bold"
-                        >
-                          DEPARTAMENTO
-                        </Label>
-                        <Input
-                          type="text"
-                          name="departamento"
-                          id="departamento"
-                          onChange={(e) => {
-                            setDireccion({
-                              ...direccion,
-                              [e.target.name]: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="col-md-12 mt-2">
-                        {" "}
-                        <Label
-                          for="direccionLabeldescripcion"
-                          className="mr-sm-2 font-weight-bold"
-                        >
-                          DESCRIPCION
-                        </Label>
-                        <Input
-                          type="text"
-                          name="descripcion"
-                          id="descripcion"
-                          onChange={(e) => {
-                            setDireccion({
-                              ...direccion,
-                              [e.target.name]: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
                   </FormGroup>
                 </>
               ) : (
@@ -426,7 +498,7 @@ const FormRegistro = (props) => {
                   }}
                 />
                 <FormFeedback className="lead box-message-letter">
-                  El email que ingresaste no cumple con las politicas
+                  El email que ingresaste es inválido.
                 </FormFeedback>
               </FormGroup>
               <FormGroup className="mb-2 mr-sm-2 mb-sm-0">
@@ -445,9 +517,24 @@ const FormRegistro = (props) => {
                     validatePassword(e, account);
                   }}
                 />
+                <Label
+                  for="passwordLabel"
+                  className="mr-sm-4 mt-sm-2 font-weight-bold"
+                >
+                  REPITE LA CONTRASEÑA
+                </Label>
+                <Input
+                  type="password"
+                  name="passwordDobleCheck"
+                  id="passwordDobleCheck"
+                  placeholder="********"
+                  onChange={(e) => {
+                    setPasswordCheck(e.target.value);
+                  }}
+                />
                 <FormFeedback className="lead box-message-letter">
-                  La contraseña que ingresaste debe poseer una letra mayuscula,
-                  un caracter numerico y debe ser de 8 caracteres o más.
+                  La contraseña debe poseer al menos una letra mayúscula, un
+                  caracter numérico y debe ser de 8 caracteres o más.
                 </FormFeedback>
               </FormGroup>
               {isFormEmpleador ? (

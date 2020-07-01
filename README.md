@@ -18,6 +18,7 @@
   2019-2020
 </p>
 <p align="center">
-  <a href="https://github.com/Warkanlock/YoTeReparo"><img width="64" height="64" src="https://raw.githubusercontent.com/Warkanlock/YoTeReparo/master/yotereparo.js/public/android-chrome-192x192.png"></a>
+  <a href="https://github.com/Rod-yan/YoTeReparo"><img width="64" height="64" src="https://raw.githubusercontent.com/Rod-yan/YoTeReparo/master/yotereparo.js/public/android-chrome-512x512.png"></a>
+=======
   <a href="https://www.frro.utn.edu.ar/"><img width="64" height="64" src="https://upload.wikimedia.org/wikipedia/commons/6/67/UTN_logo.jpg"></a>
 </p>

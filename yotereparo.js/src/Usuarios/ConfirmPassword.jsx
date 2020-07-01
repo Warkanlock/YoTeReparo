@@ -12,7 +12,7 @@ function ConfirmPassword(props) {
         </ModalHeader>
         <ModalBody>
           {props.errors ? (
-            <ResourceNotFound errorMessage="La contraseña que estas intentando ingresar caduco o no es                     valida"></ResourceNotFound>
+            <ResourceNotFound errorMessage="La contraseña que estas intentando ingresar caduco o no es valida"></ResourceNotFound>
           ) : (
             <input
               type="password"
@@ -24,12 +24,12 @@ function ConfirmPassword(props) {
           )}
         </ModalBody>
         <ModalFooter>
-          <Button color="primary" onClick={props.validatePassword}>
-            Confirmar
-          </Button>{" "}
           <Button color="secondary" onClick={props.toggle}>
             Cerrar
           </Button>
+          <Button color="danger" onClick={props.validatePassword}>
+            Confirmar
+          </Button>{" "}
         </ModalFooter>
       </Modal>
     </div>

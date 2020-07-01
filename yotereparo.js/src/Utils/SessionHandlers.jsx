@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { setSessionCokie, deleteSessionCookie } from "./SessionManage";
+import React, { useState, useEffect, useContext } from "react";
+import {
+  setSessionCokie,
+  deleteSessionCookie,
+  SessionContext,
+  getSessionCookie,
+} from "./SessionManage";
 import Container from "../Container/Container";
 import ElementContainer from "../Container/ElementContainer";
 import { Button } from "reactstrap";
@@ -10,6 +15,7 @@ export const LoginHandler = ({ history }) => {
   const [password, setPassword] = useState("");
   const [loadingUser, setLoadingUser] = useState(false);
   const [errors, setErrors] = useState(false);
+  const { setSession } = useContext(SessionContext);
 
   let requestConfig = {
     headers: {
@@ -23,7 +29,7 @@ export const LoginHandler = ({ history }) => {
     try {
       setLoadingUser(true);
       await Axios.post(
-        `http://localhost:8080/YoTeReparo/auth/signin`,
+        `/YoTeReparo/auth/signin`,
         {
           username: username,
           password: password,
@@ -31,7 +37,7 @@ export const LoginHandler = ({ history }) => {
         requestConfig
       )
         .then((response) => {
-          console.log(response);
+          console.log("INFO: Usuario correctamente autorizado");
           result = response;
         })
         .catch((error) => {
@@ -41,7 +47,7 @@ export const LoginHandler = ({ history }) => {
       console.log(error.response);
     }
 
-    if (result.status >= 400 && result.status <= 500) {
+    if (result?.status >= 400 && result?.status <= 500) {
       setLoadingUser(false);
       setErrors(true);
     }
@@ -51,12 +57,19 @@ export const LoginHandler = ({ history }) => {
       setErrors(true);
     }
 
-    if (result.data && result.status === 200) {
+    if (result?.data && result?.status === 200) {
       setLoadingUser(false);
       setErrors(false);
       setSessionCokie({ username: username, security: result.data });
-      history.push("/");
-      // window.location.reload();
+      setSession(getSessionCookie());
+      history.push({
+        pathname: `/buscar`,
+        state: {
+          username: username,
+          security: result.data,
+        },
+      });
+      window.location.reload();
     } else {
       setLoadingUser(false);
       setErrors(true);
@@ -88,8 +101,9 @@ export const LoginHandler = ({ history }) => {
                   </div>
                 </h1>
                 <div className="lead text-center">
-                  Ingresa con sus datos para empezar a buscar sus soluciones mas
-                  cercanas...
+                  Contratá o registrá nuevos servicios para tu hogar
+                  <br />
+                  Rápido, seguro, y gratuito :)
                 </div>
                 <div className="mt-4">
                   <form onSubmit={handleSubmit}>
@@ -137,6 +151,21 @@ export const LogOutHandler = ({ history }) => {
   }, [history]);
 
   return <></>;
+};
+
+export const putData = async (
+  urlToFetch,
+  requestConfig,
+  callback,
+  object = {}
+) => {
+  await Axios.put(urlToFetch, object, requestConfig)
+    .then((resp) => {
+      callback(resp.data);
+    })
+    .catch((error) => {
+      return error;
+    });
 };
 
 export const fetchData = async (urlToFetch, callback) => {

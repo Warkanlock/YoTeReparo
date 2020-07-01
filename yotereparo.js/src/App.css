@@ -47,7 +47,7 @@ a:hover {
 }
 
 .box-message-letter {
-  max-width: 280px;
+  max-width: 700px;
   padding: 10px;
 }
 
@@ -64,6 +64,54 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: "Nunito Sans", sans-serif;
+}
+
+.jumbotron {
+  background-color: white !important;
+  padding-bottom: 5px !important;
+  margin-bottom: 5px !important;
+}
+
+.no-overflow {
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+.yotereparoGrid {
+  display: -webkit-box; /* Not needed if autoprefixing */
+  display: -ms-flexbox; /* Not needed if autoprefixing */
+  display: flex;
+  margin-left: -15px; /* gutter size offset */
+  width: auto;
+}
+.yotereparoGrid_column {
+  padding-left: 15px; /* gutter size */
+  background-clip: padding-box;
+}
+
+.table-radius {
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  border-radius: 10px;
+}
+
+/* Style your items */
+.yotereparoGrid_column > div {
+  /* change div to reference your elements you put in <Masonry> */
+  background: grey;
+  margin-bottom: 15px;
+}
+
+@media (max-width: 596px) {
+  .yotereparoGrid {
+    margin-left: -15px; /* gutter size offset */
+  }
+  .yotereparoGrid_column {
+    padding-left: 15px; /* gutter size offset */
+  }
+  .yotereparoGrid_column > div {
+    margin-bottom: 15px; /* space between items */
+  }
 }
 
 @media screen and (max-width: 596px) {

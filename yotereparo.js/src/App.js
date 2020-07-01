@@ -16,23 +16,26 @@ import FormRegistro from "./Login/RegistroUsuarios";
 import EncontrarServicios from "./Find/EncontrarServicios";
 import PerfilUsuario from "./Usuarios/PerfilUsuario";
 import { NoMatch } from "./Errors/NoMatch";
+import PresupuestarServicio from "./Presupuestos/Presupuestos";
+import TablePresupuestos from "./Presupuestos/TablePresupuestos";
+import TableServicios from "./Presupuestos/TableServicios";
 
 function App() {
   const history = createBrowserHistory();
   const [session, setSession] = useState(getSessionCookie());
-
-  console.log(session);
 
   useEffect(() => {
     const newCookie = getSessionCookie();
     if (newCookie.uniqueId !== session.uniqueId) {
       setSession(newCookie);
     }
-  }, [session]);
+  }, [session.uniqueId]);
 
   return (
     <div>
-      <SessionContext.Provider value={session}>
+      <SessionContext.Provider
+        value={{ session: session, setSession: setSession }}
+      >
         <Router history={history}>
           <Header>
             <ul>
@@ -50,7 +53,7 @@ function App() {
                   </li>
                   <li>
                     <Link to="/ingresar">
-                      <i className="fas fa-sign-in-alt"></i>
+                      <i className="fas fa-address-card"></i>
                     </Link>
                   </li>
                 </>
@@ -61,6 +64,29 @@ function App() {
                       <i className="fas fa-user fa-1x"></i>
                     </Link>
                   </li>
+                  {session.security.roles.length > 1 ? (
+                    <>
+                      <li>
+                        <Link to={"/prestador/presupuestos"}>
+                          {" "}
+                          <i className="fas fa-money-check-alt fa-1x"></i>
+                        </Link>
+                      </li>
+                      <li>
+                        <Link to={"/prestador/servicios"}>
+                          {" "}
+                          <i className="fas fa-concierge-bell fa-1x"></i>
+                        </Link>
+                      </li>
+                    </>
+                  ) : (
+                    <li>
+                      <Link to={"/presupuestos"}>
+                        {" "}
+                        <i className="fas fa-money-check-alt fa-1x"></i>
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <Link to={"/salir"}>
                       <i className="fas fa-sign-out-alt fa-1x"></i>
@@ -95,6 +121,43 @@ function App() {
                 </Container>
               )}
             />
+
+            <Route
+              path="/presupuestos"
+              render={(props) => (
+                <Container>
+                  <TablePresupuestos {...props}></TablePresupuestos>
+                </Container>
+              )}
+            />
+
+            <Route
+              path="/prestador/servicios"
+              render={(props) => (
+                <Container>
+                  <TableServicios {...props}></TableServicios>
+                </Container>
+              )}
+            />
+
+            <Route
+              path="/prestador/presupuestos"
+              render={(props) => (
+                <Container>
+                  <TablePresupuestos prestador={true} {...props}></TablePresupuestos>
+                </Container>
+              )}
+            />
+
+            <Route
+              path="/presupuestar"
+              render={(props) => (
+                <Container>
+                  <PresupuestarServicio {...props} />
+                </Container>
+              )}
+            />
+
             <Route
               path="/buscar"
               render={(props) => (

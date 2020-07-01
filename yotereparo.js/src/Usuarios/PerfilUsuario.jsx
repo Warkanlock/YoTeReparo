@@ -10,13 +10,16 @@ import Loading from "../Loading/Loading";
 import NotAuth from "../Errors/NotAuth";
 import Direcciones from "../Servicios/Direcciones";
 import ConfirmPassword from "./ConfirmPassword";
+import ResourceNotFound from "../Errors/ResourceNotFound";
+import { useRef } from "react";
 
-//TODO: Add CRUD for address and neighbours if the user is prestador
-//TODO: Validate token expired
+const toLower = (text) => {
+  return text.toLowerCase();
+};
 
 function PerfilUsuario(props) {
   const history = useHistory();
-  const session = useContext(SessionContext);
+  const { session } = useContext(SessionContext);
   const [profile, setProfile] = useState({});
   const [password, setPassword] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +30,19 @@ function PerfilUsuario(props) {
   const [address, setAddress] = useState(false);
   const [errors, setErrors] = useState(false);
   const [errorAddress, setAddressError] = useState(false);
+  const [modifyAddressFields, setModifyAddress] = useState(true);
+
+  const [newAddress, setNewAddress] = useState({
+    calle: 0,
+    altura: 0,
+    piso: 0,
+    departamento: "No definido",
+    descripcion: "No definido",
+  });
+
+  const onChangeNewAddress = (event) => {
+    setNewAddress({ ...newAddress, [event.target.id]: event.target.value });
+  };
 
   const toggle = () => {
     setModal(!modal);
@@ -34,6 +50,7 @@ function PerfilUsuario(props) {
   };
 
   const toggleAddress = () => {
+    setAddressError(false);
     setAddress(!address);
   };
 
@@ -53,15 +70,15 @@ function PerfilUsuario(props) {
     let result;
     try {
       await Axios.post(
-        `http://localhost:8080/YoTeReparo/auth/signin`,
+        `/YoTeReparo/auth/signin`,
         {
-          username: profile.id,
+          username: toLower(profile.id),
           password: password,
         },
         requestConfig
       )
         .then((response) => {
-          console.log(response);
+          console.log("INFO: Usuario validado correctamente");
           result = response;
         })
         .catch((error) => {
@@ -81,7 +98,9 @@ function PerfilUsuario(props) {
 
     if (result.data && result.status === 200) {
       updateProfile();
-      handleActivateModifications();
+      activateModify(true);
+      setModifyAddress(true);
+      setAddress(false);
       toggle();
     } else {
       setErrors(true);
@@ -96,7 +115,12 @@ function PerfilUsuario(props) {
       ciudad: profile.ciudad,
       barrios: profile.barrios,
       email: profile.email,
-      direcciones: profile.direcciones,
+      direcciones:
+        profile.direcciones.length > 0
+          ? profile.direcciones
+          : newAddress.altura === 0
+          ? []
+          : [newAddress],
       contrasena: password,
       membresia: profile.membresia,
     };
@@ -106,6 +130,12 @@ function PerfilUsuario(props) {
       nombre: profile.nombre,
       apellido: profile.apellido,
       ciudad: profile.ciudad,
+      direcciones:
+        profile.direcciones.length > 0
+          ? profile.direcciones
+          : newAddress.altura === 0
+          ? []
+          : [newAddress],
       email: profile.email,
       contrasena: password,
     };
@@ -116,16 +146,13 @@ function PerfilUsuario(props) {
 
     setUpdating(true);
 
-    Axios.put(
-      `http://localhost:8080/YoTeReparo/users/${profile.id}`,
-      requestData,
-      requestConfig
-    )
+    Axios.put(`/YoTeReparo/users/${profile.id}`, requestData, requestConfig)
       .then((response) => {
         if (response.status === 400) {
           console.log(response.json);
         } else {
           setUpdating(false);
+          setAddressError(false);
           history.push({
             pathname: `/perfil/${profile.id}`,
             state: { user: profile },
@@ -134,14 +161,22 @@ function PerfilUsuario(props) {
         }
       })
       .catch((error) => {
-        throw new Error(
-          "ERROR: There is a problem with the update of an User" + error
-        );
+        setAddressError(true);
       });
   };
 
+  const updateAddress = (event) => {
+    profile.direcciones[0][event.target.id] = event.target.value;
+  };
+
   const handleActivateModifications = () => {
+    setAddressError(false);
     activateModify(!modify);
+  };
+
+  const handleCancelModifications = () => {
+    activateModify(!modify);
+    setUpdating(false);
   };
 
   useEffect(() => {
@@ -163,27 +198,28 @@ function PerfilUsuario(props) {
         result?.name !== "Error" ||
         result?.security.accessToken != null
       ) {
-        if (session.username === result?.data.id && session.security) {
+        if (toLower(session.username) === result?.data.id && session.security) {
           setAuth(true);
           setProfile(result.data);
           console.log("OK: Ingresaste correctamente");
+          setErrors(false);
         } else {
           console.log(
             "ERROR: El usuario ingresado no corresponde con la informacion de sesion"
           );
           setAuth(false);
+          setErrors(true);
         }
       } else {
         setAuth(false);
+        setErrors(true);
         console.log(
           "ERROR: Hay un error con la peticion al servidor y/o No estas autorizado para entrar aca"
         );
       }
     };
     try {
-      fetchData(
-        `http://localhost:8080/YoTeReparo/users/${props.match.params.userId}`
-      ).then(() => {
+      fetchData(`/YoTeReparo/users/${props.match.params.userId}`).then(() => {
         setLoading(false);
       });
     } catch (error) {
@@ -218,28 +254,37 @@ function PerfilUsuario(props) {
           <Direcciones
             address={address}
             toggleAddress={toggleAddress}
-            errors={errorAddress}
+            addressModify={modifyAddressFields}
             profile={profile}
-            CreateCallback={() => console.log("TODO: Validate address")}
-            ModifyOne={() => console.log("TODO: Modify Address")}
-            CreateOne={() => console.log("TODO: Create Address")}
+            handleChange={updateAddress}
+            onChangeNewAddress={onChangeNewAddress}
+            CreateCallback={() =>
+              modifyAddressFields === false ? toggle() : toggleAddress()
+            }
+            ModifyOne={() => setModifyAddress(!modifyAddressFields)}
           ></Direcciones>
           {profile === undefined || auth === false ? (
             <NotAuth></NotAuth>
           ) : (
-            <ProfileContext.Provider value={profile}>
-              <Usuario
-                modify={modify}
-                updatingUser={updating}
-                activateEdit={() => handleActivateModifications()}
-                activateSave={() => {
-                  toggle();
-                }}
-                modifyAddress={() => {
-                  setAddress(!address);
-                }}
-              ></Usuario>
-            </ProfileContext.Provider>
+            <>
+              {errorAddress && (
+                <ResourceNotFound errorMessage="Estas intentado ingresar una direccion erronea"></ResourceNotFound>
+              )}
+              <ProfileContext.Provider value={profile}>
+                <Usuario
+                  modify={modify}
+                  updatingUser={updating}
+                  activateEdit={() => handleActivateModifications()}
+                  activateSave={() => {
+                    toggle();
+                  }}
+                  cancelSave={handleCancelModifications}
+                  modifyAddress={() => {
+                    setAddress(!address);
+                  }}
+                ></Usuario>
+              </ProfileContext.Provider>
+            </>
           )}
         </>
       )}

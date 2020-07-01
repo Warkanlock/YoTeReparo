@@ -10,16 +10,17 @@ import { toDataURL } from "../Utils/Images";
 import ProfilePicture from "./ProfilePicture";
 import ProfileInformation from "./ProfileInformation";
 import Loading from "../Loading/Loading";
+import { Button } from "reactstrap";
 
 function Usuario(props) {
-  const session = useContext(SessionContext);
+  const { session } = useContext(SessionContext);
   const profile = useContext(ProfileContext);
   const fileUploader = useRef(null);
   const profilePicture = useRef(null);
   const [changePicture, updateProfilePicture] = useState(0);
   const [pictureLoading, setPictureLoading] = useState(true);
   const [userPicture, setUserPicture] = useState(
-    "https://api.adorable.io/avatars/216/yotereparo"
+    "https://avatars.dicebear.com/api/human/yotereparo.svg"
   );
 
   let requestConfig = {
@@ -29,12 +30,14 @@ function Usuario(props) {
     },
   };
 
-  //const isPrestador = profile.membresia != null ? true : false;
-
   var keyPress = false;
 
   const handleChange = (event) => {
     profile[event.target.id] = event.target.value;
+  };
+
+  const clearImage = () => {
+    setUserPicture("https://avatars.dicebear.com/api/human/yotereparo.svg");
   };
 
   const handleKeyPress = (event) => {
@@ -77,16 +80,15 @@ function Usuario(props) {
 
   useEffect(() => {
     const fetchData = () => {
-      Axios.get(
-        `http://localhost:8080/YoTeReparo/users/${profile.id}/photo`,
-        requestConfig
-      )
+      Axios.get(`/YoTeReparo/users/${profile.id}/photo`, requestConfig)
         .then((response) => {
           if (response.status === 400) {
-            setUserPicture("https://api.adorable.io/avatars/216/yotereparo");
+            setUserPicture(
+              "https://avatars.dicebear.com/api/human/yotereparo.svg"
+            );
           } else {
             toDataURL(
-              `http://localhost:8080/YoTeReparo/users/${profile.id}/photo`,
+              `/YoTeReparo/users/${profile.id}/photo`,
               requestConfig
             ).then((dataUrl) => {
               setUserPicture(dataUrl);
@@ -96,7 +98,9 @@ function Usuario(props) {
         })
         .catch((error) => {
           console.error(error);
-          setUserPicture("https://api.adorable.io/avatars/216/yotereparo");
+          setUserPicture(
+            "https://avatars.dicebear.com/api/human/yotereparo.svg"
+          );
           setPictureLoading(false);
         });
     };
@@ -118,7 +122,7 @@ function Usuario(props) {
       };
 
       Axios.put(
-        `http://localhost:8080/YoTeReparo/users/${profile.id}/photo`,
+        `/YoTeReparo/users/${profile.id}/photo`,
         requestPhoto,
         requestConfig
       )
@@ -128,7 +132,7 @@ function Usuario(props) {
           } else {
             console.log("Imagen subida correctamente");
             toDataURL(
-              `http://localhost:8080/YoTeReparo/users/${profile.id}/photo`,
+              `/YoTeReparo/users/${profile.id}/photo`,
               requestConfig
             ).then((dataUrl) => {
               setUserPicture(dataUrl);
@@ -167,6 +171,12 @@ function Usuario(props) {
                               fileUploader={fileUploader}
                               updatePicture={updatePicture}
                             ></ProfilePicture>
+                            <button
+                              onClick={clearImage}
+                              className="btn btn-outline-secondary btn-block mt-2 btn-sm"
+                            >
+                              Limpiar Imagen
+                            </button>
                           </div>
                           <div className="col-md-8 text-right">
                             <div className="card-body">
@@ -179,6 +189,7 @@ function Usuario(props) {
                                     modifyAddress={props.modifyAddress}
                                     activateSave={props.activateSave}
                                     activateEdit={props.activateEdit}
+                                    activateCancel={props.cancelSave}
                                   ></ProfileInformation>
                                 </div>
                               </div>

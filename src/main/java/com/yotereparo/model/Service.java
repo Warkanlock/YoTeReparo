@@ -27,6 +27,17 @@ import org.springframework.format.annotation.DateTimeFormat;
 @Entity
 @Table(name="servicio")
 public class Service {
+	// Constantes de estado
+	public static final String ACTIVE = "ACTIVO";
+	public static final String INACTIVE = "INACTIVO";
+	public static final String BLOCKED = "BLOQUEADO";
+	public static final String ARCHIVED = "ARCHIVADO";
+	
+	public static final String STATUS_LIST_REGEXP =
+			ACTIVE + "|" +
+			INACTIVE + "|" +
+			BLOCKED + "|" +
+			ARCHIVED;
 	
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,6 +53,8 @@ public class Service {
 	private String descripcion;
 	
 	private String disponibilidad;
+	
+	private boolean insitu;
 	
 	@Column(name = "precio_maximo", columnDefinition = "NUMERIC", precision = 11, scale = 2, nullable = false)
 	private Float precioMaximo;
@@ -76,7 +89,7 @@ public class Service {
 	private ServiceType tipoServicio;
 	
 	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-	@Column(name = "fecha_creacion", nullable = true)
+	@Column(name = "fecha_creacion", nullable = false)
 	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
 	private DateTime fechaCreacion;
 	
@@ -97,8 +110,12 @@ public class Service {
 	private Set<Requirement> requerimientos = new HashSet<Requirement>(0);
 	
 	@OneToMany(mappedBy = "servicio", fetch = FetchType.EAGER, cascade = CascadeType.MERGE, orphanRemoval = true)
-	@Where(clause = "estado <> 'ARCHIVADO'")
+	@Where(clause = "estado <> '"+Quote.ARCHIVED+"'")
 	private Set<Quote> presupuestos = new HashSet<Quote>(0);
+	
+	@OneToMany(mappedBy = "servicio", fetch = FetchType.EAGER, cascade = CascadeType.MERGE, orphanRemoval = true)
+	@Where(clause = "estado <> '"+Message.ARCHIVED+"'")
+	private Set<Message> mensajes = new HashSet<Message>(0);
 		
 	public Service() { }
 	
@@ -141,6 +158,14 @@ public class Service {
 
 	public void setDisponibilidad(String disponibilidad) {
 		this.disponibilidad = disponibilidad;
+	}
+
+	public boolean isInsitu() {
+		return insitu;
+	}
+
+	public void setInsitu(boolean insitu) {
+		this.insitu = insitu;
 	}
 
 	public Float getPrecioMaximo() {
@@ -274,6 +299,19 @@ public class Service {
     	presupuestos.remove(presupuesto);
     }
 
+	public Set<Message> getMensajes() {
+		return mensajes;
+	}
+	public void setMensajes(Set<Message> mensajes) {
+		this.mensajes = mensajes;
+	}
+	public void addMensaje(Message mensaje) {
+		mensajes.add(mensaje);
+    }
+    public void removeMensaje(Message mensaje) {
+    	mensajes.remove(mensaje);
+    }
+
 	public boolean similarTo(Service service) {
 		if (service == null)
 			return false;
@@ -282,6 +320,7 @@ public class Service {
 		if (this.titulo.equalsIgnoreCase(service.titulo) ||
 				( this.descripcion.equalsIgnoreCase(service.descripcion) &&
 				  this.disponibilidad.equalsIgnoreCase(service.disponibilidad) &&
+				  this.insitu == service.insitu &&
 				  this.precioMaximo.equals(service.precioMaximo) &&
 				  this.precioMinimo.equals(service.precioMinimo) &&
 				  this.precioInsumos.equals(service.precioInsumos) &&
@@ -321,6 +360,8 @@ public class Service {
 			if (other.disponibilidad != null)
 				return false;
 		} else if (!disponibilidad.equals(other.disponibilidad))
+			return false;
+		if (insitu != other.insitu)
 			return false;
 		if (estado == null) {
 			if (other.estado != null)
@@ -376,6 +417,11 @@ public class Service {
 				return false;
 		} else if (!presupuestos.equals(other.presupuestos))
 			return false;
+		if (mensajes == null) {
+			if (other.mensajes != null)
+				return false;
+		} else if (!mensajes.equals(other.mensajes))
+			return false;
 		if (!Arrays.equals(thumbnail, other.thumbnail))
 			return false;
 		if (tipoServicio == null) {
@@ -399,13 +445,13 @@ public class Service {
 	@Override
 	public String toString() {
 		return "Service [id=" + id + ", usuarioPrestador=" + usuarioPrestador.getId() + ", titulo=" + titulo + ", descripcion="
-				+ descripcion + ", disponibilidad=" + disponibilidad + ", precioMaximo=" + precioMaximo
-				+ ", precioMinimo=" + precioMinimo + ", precioPromedio=" + precioPromedio + ", precioInsumos="
-				+ precioInsumos + ", precioAdicionales=" + precioAdicionales + ", horasEstimadasEjecucion="
-				+ horasEstimadasEjecucion + ", cantidadTrabajadores=" + cantidadTrabajadores + ", facturaEmitida="
-				+ facturaEmitida + ", imagen=" + Arrays.toString(imagen) + ", thumbnail=" + Arrays.toString(thumbnail)
-				+ ", tipoServicio=" + tipoServicio + ", fechaCreacion=" + fechaCreacion + ", estado=" + estado
-				+ ", mediosDePago=" + mediosDePago + ", requerimientos=" + requerimientos + ", presupuestos="
-				+ presupuestos + "]";
+				+ descripcion + ", disponibilidad=" + disponibilidad + ", insitu=" + insitu + ", precioMaximo="
+				+ precioMaximo + ", precioMinimo=" + precioMinimo + ", precioPromedio=" + precioPromedio
+				+ ", precioInsumos=" + precioInsumos + ", precioAdicionales=" + precioAdicionales
+				+ ", horasEstimadasEjecucion=" + horasEstimadasEjecucion + ", cantidadTrabajadores="
+				+ cantidadTrabajadores + ", facturaEmitida=" + facturaEmitida + ", imagen=" + Arrays.toString(imagen)
+				+ ", thumbnail=" + Arrays.toString(thumbnail) + ", tipoServicio=" + tipoServicio + ", fechaCreacion="
+				+ fechaCreacion + ", estado=" + estado + ", mediosDePago=" + mediosDePago + ", requerimientos="
+				+ requerimientos + ", presupuestos=" + presupuestos + ", mensajes=" + mensajes + "]";
 	}
 }

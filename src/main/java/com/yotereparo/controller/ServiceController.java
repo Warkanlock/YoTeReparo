@@ -21,6 +21,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -36,15 +39,13 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yotereparo.controller.dto.ServiceDto;
-import com.yotereparo.controller.dto.converter.ServiceConverter;
+import com.yotereparo.controller.dto.validation.ServiceValidation;
 import com.yotereparo.controller.filter.ServiceFilter;
+import com.yotereparo.controller.mapping.ServiceMapper;
 import com.yotereparo.model.Service;
-import com.yotereparo.service.CityService;
-import com.yotereparo.service.PaymentMethodService;
 import com.yotereparo.service.ServiceManager;
 import com.yotereparo.service.UserService;
 import com.yotereparo.util.MiscUtils;
-import com.yotereparo.util.ValidationUtils;
 import com.yotereparo.util.error.CustomResponseError;
 /**
  * Controlador REST SpringMVC que expone servicios básicos para la gestión de Servicios.
@@ -63,15 +64,11 @@ public class ServiceController {
 	@Autowired
     UserService userService;
 	@Autowired
-    CityService cityService;
-	@Autowired
-    PaymentMethodService paymentMethodService;
-	@Autowired
     MessageSource messageSource;
 	@Autowired
-	ValidationUtils validationUtils;
+	ServiceValidation serviceValidation;
 	@Autowired
-	ServiceConverter serviceConverter;
+	ServiceMapper serviceMapper;
 	@Autowired
 	ServiceFilter supportedFilters;
 	@Autowired
@@ -85,14 +82,25 @@ public class ServiceController {
 			produces = "application/json; charset=UTF-8", 
 			method = RequestMethod.GET)
 	public ResponseEntity<?> listServices(@RequestParam(required = false) Map<String,String> filters) {
-		logger.info("ListServices - GET - Processing request for a list with all existing services.");
+		logger.info("ListServices - GET - Processing request from all existing services.");
 		try {
 			List<Service> services = null;
-			services = supportedFilters.contains(filters) ? serviceManager.getAllServices(filters) : serviceManager.getAllServices();
+			if (filters != null && !filters.isEmpty()) {
+				if (supportedFilters.contains(filters))
+					services = serviceManager.getAllServices(filters);
+				else {
+					logger.warn("ListServices - GET - Request failed - Unsupported filters.");
+					FieldError error = new FieldError("Service","error",
+							messageSource.getMessage("unsupported.filters", null, Locale.getDefault()));
+					return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.BAD_REQUEST);
+				}
+			}
+			else
+				services = serviceManager.getAllServices();
 			
 			if (services != null && !services.isEmpty()) {
 				List<ServiceDto> servicesDto = services.stream()
-		                .map(service -> serviceConverter.convertToDto(service))
+		                .map(service -> serviceMapper.convertToDto(service))
 		                .collect(Collectors.toList());
 				
 	        	logger.info("ListServices - GET - Exiting method, providing response resource to client.");
@@ -105,7 +113,8 @@ public class ServiceController {
 		}
 		catch (Exception e) {
 			logger.error("ListServices - GET - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
     }
@@ -118,23 +127,25 @@ public class ServiceController {
 			produces = "application/json; charset=UTF-8", 
 			method = RequestMethod.GET)
 	public ResponseEntity<?> getService(@PathVariable("id") Integer id) {
-		logger.info(String.format("GetService - GET - Processing request for service <%s>.", id));
+		logger.info("GetService - GET - Processing request for service <{}>.", id);
         try {
         	Service service = serviceManager.getServiceById(id);
             
     		if (service != null) {
             	logger.info("GetService - GET - Exiting method, providing response resource to client.");
-                return new ResponseEntity<ServiceDto>(serviceConverter.convertToDto(service), HttpStatus.OK);
+                return new ResponseEntity<ServiceDto>(serviceMapper.convertToDto(service), HttpStatus.OK);
             }
             else {
-            	logger.warn(String.format("GetService - GET - Request failed - Service with id <%s> not found.", id));
-                FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+            	logger.warn("GetService - GET - Request failed - Service with id <{}> not found.", id);
+                FieldError error = new FieldError("Service","error",
+                		messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
                 return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
             }
         }
         catch (Exception e) {
 			logger.error("GetService - GET - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
     }
@@ -147,29 +158,50 @@ public class ServiceController {
 			consumes = "application/json; charset=UTF-8",
 			produces = "application/json; charset=UTF-8",
 			method = RequestMethod.POST)
+	@PreAuthorize("hasAuthority('USUARIO_PRESTADOR_GRATUITA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_PLATA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_ORO')"
+			+ " or hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> createService(@RequestBody ServiceDto clientInput, UriComponentsBuilder ucBuilder, BindingResult result) {	
-		logger.info(String.format("CreateService - POST - Processing request for service <%s>.", clientInput.getTitulo()));
+		logger.info("CreateService - POST - Processing request for service <{}>.", clientInput.getTitulo());
 		try {
-			if (!validationUtils.serviceInputValidation(clientInput, result).hasErrors()) {
-				Service service = serviceConverter.convertToEntity(clientInput);
-				if (!serviceManager.similarExist(service)) {
-					serviceManager.createService(service);
-					
-					HttpHeaders headers = new HttpHeaders();
-			        headers.setLocation(ucBuilder.path("/services/{id}").buildAndExpand(service.getId()).toUri());
-			        
-			        logger.info("CreateService - POST - Exiting method, providing response resource to client.");
-					return new ResponseEntity<>(headers, HttpStatus.CREATED);
+			String authenticatedUsername = 
+					((UserDetails)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
+			
+			// Setteamos el usuario prestador de acuerdo al usuario autenticado que está registrando el request.
+			clientInput.setUsuarioPrestador(authenticatedUsername);
+			if (userService.hasMembershipAllowance(userService.getUserById(authenticatedUsername))) {
+				if (!serviceValidation.validateRequest(clientInput, result).hasErrors()) {
+					Service service = serviceMapper.convertToEntity(clientInput);
+					if (!serviceManager.similarExist(service)) {
+						serviceManager.createService(service);
+						
+						HttpHeaders headers = new HttpHeaders();
+				        headers.setLocation(ucBuilder.path("/services/{id}").buildAndExpand(service.getId()).toUri());
+				        
+				        logger.info("CreateService - POST - Exiting method, providing response resource to client.");
+						return new ResponseEntity<>(headers, HttpStatus.CREATED);
+					}
+					else {
+						logger.warn("CreateService - POST - Request failed - Unable to create service. "
+								+ "Service <{}> is too similar to another service", service.getTitulo());
+			            FieldError error = new FieldError("Service","error",
+			            		messageSource.getMessage("service.too.similar", new String[]{service.getTitulo()}, Locale.getDefault()));
+			            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.CONFLICT);
+					}
 				}
 				else {
-					logger.warn(String.format("CreateService - POST - Request failed - Unable to create service. Service <%s> is too similar to another service", service.getTitulo()));
-		            FieldError error = new FieldError("Service","error",messageSource.getMessage("service.too.similar", new String[]{service.getTitulo()}, Locale.getDefault()));
-		            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.CONFLICT);
+					logger.warn("CreateService - POST - Request failed - Input validation error(s) detected.");
+					return new ResponseEntity<>(miscUtils.getFormatedResponseErrorList(result), HttpStatus.BAD_REQUEST);
 				}
 			}
 			else {
-				logger.warn("CreateService - POST - Request failed - Input validation error(s) detected.");
-				return new ResponseEntity<>(miscUtils.getFormatedResponseErrorList(result), HttpStatus.BAD_REQUEST);
+				logger.warn("CreateService - POST - Request failed - User <{}> can't create any more services.", 
+						authenticatedUsername);
+				FieldError error = new FieldError("User","membresia",
+						messageSource.getMessage("user.membership.insufficient.allowance", 
+								new String[]{authenticatedUsername}, Locale.getDefault()));
+				return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.FORBIDDEN);
 			}
         }
 		catch (CustomResponseError e) {
@@ -187,52 +219,66 @@ public class ServiceController {
 	 * Actualiza los atributos del servicio con los valores recibidos en el JSON payload. 
 	 * Si estos no se incluyen en el request body entonces se considera que se está intentando vaciar su valor. 
 	 * Esto es legal solo para atributos no mandatorios en la entidad.
-	 * Las imagenes del servicio seran ignoradas por este método (Ignorados, no ilegales).
 	 */
 	@RequestMapping(
 			value = { "/services/{id}" }, 
 			consumes = "application/json; charset=UTF-8",
 			produces = "application/json; charset=UTF-8",
 			method = RequestMethod.PUT)
+	@PreAuthorize("hasAuthority('USUARIO_PRESTADOR_GRATUITA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_PLATA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_ORO')"
+			+ " or hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> updateService(@PathVariable("id") Integer id, @RequestBody ServiceDto clientInput, BindingResult result) {	
-		logger.info(String.format("UpdateService - PUT - Processing request for service <%s>.", id));
+		logger.info("UpdateService - PUT - Processing request for service <{}>.", id);
 		try {
 			clientInput.setId(id);
-			if (serviceManager.getServiceById(id) != null) {
-				if (!validationUtils.serviceInputValidation(clientInput, result).hasErrors()) {
-					Service service = serviceConverter.convertToEntity(clientInput);
-					Boolean serviceIsRegisteredToUser = false;
-					for (Service s : service.getUsuarioPrestador().getServicios())
-						if (s.getId().equals(id)) {
-							serviceIsRegisteredToUser = true;
-							break;
-						}
-					if (serviceIsRegisteredToUser)
-						if (!serviceManager.similarExist(service)) {
-							serviceManager.updateService(service);
+			Service service = serviceManager.getServiceById(id);
+			if (service != null) {
+				String authenticatedUsername = 
+						((UserDetails)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
+				boolean isServiceAccountOrAdministrator = 
+						userService.isServiceAccountOrAdministrator(userService.getUserById(authenticatedUsername));
+				boolean isOwnerProvider = 
+						service.getUsuarioPrestador().getId().equalsIgnoreCase(authenticatedUsername);
+				// Verificamos que el servicio siendo procesado le pertenezca al usuario autenticado
+				if (isServiceAccountOrAdministrator || isOwnerProvider) {
+					// Setteamos el usuario prestador del input del cliente (servicio actualizado) 
+					// como el usuario prestador que es dueño del servicio a actualizar
+					clientInput.setUsuarioPrestador(service.getUsuarioPrestador().getId());
+					if (!serviceValidation.validateRequest(clientInput, result).hasErrors()) {
+						Service updatedService = serviceMapper.convertToEntity(clientInput);
+						if (!serviceManager.similarExist(updatedService)) {
+							serviceManager.updateService(updatedService);
 							
 							logger.info("UpdateService - PUT - Exiting method, providing response resource to client.");
-							return new ResponseEntity<ServiceDto>(serviceConverter.convertToDto(serviceManager.getServiceById(id)), HttpStatus.OK);
+							return new ResponseEntity<ServiceDto>(serviceMapper.convertToDto(serviceManager.getServiceById(id)), HttpStatus.OK);
 						}
 						else {
-							logger.warn(String.format("UpdateService - PUT - Request failed - Unable to update service. Service <%s> is too similar to another service", service.getTitulo()));
-				            FieldError error = new FieldError("Service","error",messageSource.getMessage("service.too.similar", new String[]{service.getTitulo()}, Locale.getDefault()));
+							logger.warn("UpdateService - PUT - Request failed - Unable to update service. "
+									+ "Service <{}> is too similar to another service", service.getTitulo());
+				            FieldError error = new FieldError("Service","error",
+				            		messageSource.getMessage("service.too.similar", new String[]{service.getTitulo()}, Locale.getDefault()));
 				            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.CONFLICT);
 						}
+					}
 					else {
-						logger.warn(String.format("UpdateService - PUT - Request failed - Unable to update service. Service <%s> doesn't belong to user <%s>.", id, service.getUsuarioPrestador().getId()));
-						FieldError error = new FieldError("Service","servicios",messageSource.getMessage("service.doesnt.belong.to.user", new Integer[]{service.getId()}, Locale.getDefault()));
-						return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.BAD_REQUEST);
+						logger.warn("UpdateService - PUT - Request failed - Input validation error(s) detected.");
+						return new ResponseEntity<>(miscUtils.getFormatedResponseErrorList(result), HttpStatus.BAD_REQUEST);
 					}
 				}
 				else {
-					logger.warn("UpdateService - PUT - Request failed - Input validation error(s) detected.");
-					return new ResponseEntity<>(miscUtils.getFormatedResponseErrorList(result), HttpStatus.BAD_REQUEST);
+					logger.warn("UpdateService - PUT - Request failed - Service <{}> doesn't belong to user <{}>.", 
+							id, authenticatedUsername);
+					FieldError error = new FieldError("Service","error",
+							messageSource.getMessage("service.doesnt.belong.to.user", new Integer[]{service.getId()}, Locale.getDefault()));
+					return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
 				}
 	        }
 			else {
-				logger.warn(String.format("UpdateService - PUT - Request failed - Unable to update service. Service <%s> doesn't exist.", id));
-	            FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+				logger.warn("UpdateService - PUT - Request failed - Unable to update service. Service <{}> doesn't exist.", id);
+	            FieldError error = new FieldError("Service","error",
+	            		messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 	            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 			}
 		}
@@ -242,7 +288,8 @@ public class ServiceController {
 		}
 		catch (Exception e) {
 			logger.error("UpdateService - PUT - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
     }
@@ -254,24 +301,47 @@ public class ServiceController {
 			value = { "/services/{id}/enable" }, 
 			produces = "application/json; charset=UTF-8",			
 			method = RequestMethod.PUT)
+	@PreAuthorize("hasAuthority('USUARIO_PRESTADOR_GRATUITA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_PLATA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_ORO')"
+			+ " or hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> enableService(@PathVariable("id") Integer id) {
-		logger.info(String.format("EnableService - PUT - Processing request for service <%s>.", id));
+		logger.info("EnableService - PUT - Processing request for service <{}>.", id);
 		try {
-			if (serviceManager.getServiceById(id) != null) {
-				serviceManager.enableServiceById(id);
-	        	
-	        	logger.info("EnableService - PUT - Exiting method, providing response resource to client.");
-	            return new ResponseEntity<>(HttpStatus.OK);
+			Service service = serviceManager.getServiceById(id);
+			if (service != null) {
+				String authenticatedUsername = 
+						((UserDetails)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
+				boolean isServiceAccountOrAdministrator = 
+						userService.isServiceAccountOrAdministrator(userService.getUserById(authenticatedUsername));
+				boolean isOwnerProvider = 
+						service.getUsuarioPrestador().getId().equalsIgnoreCase(authenticatedUsername);
+				// Verificamos que el servicio siendo procesado le pertenezca al usuario autenticado
+				if (isServiceAccountOrAdministrator || isOwnerProvider) {
+					serviceManager.enableServiceById(id);
+		        	
+		        	logger.info("EnableService - PUT - Exiting method, providing response resource to client.");
+		            return new ResponseEntity<>(HttpStatus.OK);
+				}
+				else {
+					logger.warn("EnableService - PUT - Request failed - Service <{}> doesn't belong to user <{}>.", 
+							id, authenticatedUsername);
+					FieldError error = new FieldError("Service","error",
+							messageSource.getMessage("service.doesnt.belong.to.user", new Integer[]{service.getId()}, Locale.getDefault()));
+					return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+				}
 	        }
 	        else {
-	        	logger.warn(String.format("EnableService - PUT - Request failed - Unable to enable service. Service <%s> doesn't exist.", id));
-	        	FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+	        	logger.warn("EnableService - PUT - Request failed - Unable to enable service. Service <{}> doesn't exist.", id);
+	        	FieldError error = new FieldError("Service","error",
+	        			messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 	        	return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 	        }
 		}
 		catch (Exception e) {
 			logger.error("EnableService - PUT - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}  
     }
@@ -283,24 +353,47 @@ public class ServiceController {
 			value = { "/services/{id}/disable" }, 
 			produces = "application/json; charset=UTF-8",			
 			method = RequestMethod.PUT)
+	@PreAuthorize("hasAuthority('USUARIO_PRESTADOR_GRATUITA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_PLATA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_ORO')"
+			+ " or hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> disableService(@PathVariable("id") Integer id) {
-		logger.info(String.format("DisableService - PUT - Processing request for service <%s>.", id));
+		logger.info("DisableService - PUT - Processing request for service <{}>.", id);
 		try {
-			if (serviceManager.getServiceById(id) != null) {
-				serviceManager.disableServiceById(id);
-	        	
-	        	logger.info("DisableService - PUT - Exiting method, providing response resource to client.");
-	            return new ResponseEntity<>(HttpStatus.OK);
+			Service service = serviceManager.getServiceById(id);
+			if (service != null) {
+				String authenticatedUsername = 
+						((UserDetails)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
+				boolean isServiceAccountOrAdministrator = 
+						userService.isServiceAccountOrAdministrator(userService.getUserById(authenticatedUsername));
+				boolean isOwnerProvider = 
+						service.getUsuarioPrestador().getId().equalsIgnoreCase(authenticatedUsername);
+				// Verificamos que el servicio siendo procesado le pertenezca al usuario autenticado
+				if (isServiceAccountOrAdministrator || isOwnerProvider) {
+					serviceManager.disableServiceById(id);
+		        	
+		        	logger.info("DisableService - PUT - Exiting method, providing response resource to client.");
+		            return new ResponseEntity<>(HttpStatus.OK);
+				}
+				else {
+					logger.warn("DisableService - PUT - Request failed - Service <{}> doesn't belong to user <{}>.", 
+							id, authenticatedUsername);
+					FieldError error = new FieldError("Service","error",
+							messageSource.getMessage("service.doesnt.belong.to.user", new Integer[]{service.getId()}, Locale.getDefault()));
+					return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+				}
 	        }
 	        else {
-	        	logger.warn(String.format("DisableService - PUT - Request failed - Unable to disable service. Service <%s> doesn't exist.", id));
-	        	FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+	        	logger.warn("DisableService - PUT - Request failed - Unable to disable service. Service <{}> doesn't exist.", id);
+	        	FieldError error = new FieldError("Service","error",
+	        			messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 	        	return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 	        }
 		}
 		catch (Exception e) {
 			logger.error("DisableService - PUT - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}  
     }
@@ -312,8 +405,9 @@ public class ServiceController {
 			value = { "/services/{id}" }, 
 			produces = "application/json; charset=UTF-8",			
 			method = RequestMethod.DELETE)
+	@PreAuthorize("hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> deleteService(@PathVariable("id") Integer id) {
-		logger.info(String.format("DeleteService - DELETE - Processing request for service <%s>.", id));
+		logger.info("DeleteService - DELETE - Processing request for service <{}>.", id);
 		try {
 			if (serviceManager.getServiceById(id) != null) {
 				serviceManager.deleteServiceById(id);
@@ -322,14 +416,16 @@ public class ServiceController {
 	            return new ResponseEntity<>(HttpStatus.OK);
 	        }
 	        else {
-	        	logger.warn(String.format("DeleteService - DELETE - Request failed - Unable to delete service. Service <%s> doesn't exist.", id));
-	        	FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+	        	logger.warn("DeleteService - DELETE - Request failed - Unable to delete service. Service <{}> doesn't exist.", id);
+	        	FieldError error = new FieldError("Service","error",
+	        			messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 	        	return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 	        }
 		}
 		catch (Exception e) {
 			logger.error("DeleteService - DELETE - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}  
     }
@@ -343,10 +439,10 @@ public class ServiceController {
 			produces = "application/json; charset=UTF-8",
 			method = RequestMethod.GET)
     public ResponseEntity<?> getServiceImage(@PathVariable("id") Integer id) {
-		logger.info(String.format("GetServiceImage - GET - Processing request for service's <%s> image.", id));
+		logger.info("GetServiceImage - GET - Processing request for service's <{}> image.", id);
 		try {
 			Service service = serviceManager.getServiceById(id);
-			if (service != null) {			
+			if (service != null) {
 				// evaluamos el uri path del request para determinar si vamos a estar trabajando con la foto o con el thumbnail
 				String requestUri = ServletUriComponentsBuilder.fromCurrentRequestUri().toUriString();
 				byte[] serviceImage;
@@ -375,20 +471,25 @@ public class ServiceController {
 					return new ResponseEntity<byte[]>(serviceImage, headers, HttpStatus.OK);
 				}
 				else {
-					logger.warn(String.format("GetServiceImage - GET - Request failed - Unable to fetch service's image. No image was found for service <%s>.", id));
-		        	FieldError error = new FieldError("Service","imagen",messageSource.getMessage("service.doesnt.have.image", new Integer[]{id}, Locale.getDefault()));
+					logger.warn("GetServiceImage - GET - Request failed - Unable to fetch service's image. "
+							+ "No image was found for service <{}>.", id);
+		        	FieldError error = new FieldError("Service","imagen",
+		        			messageSource.getMessage("service.doesnt.have.image", new Integer[]{id}, Locale.getDefault()));
 		        	return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 				}
 	        }
 			else {
-				logger.warn(String.format("GetServiceImage - GET - Request failed - Unable to fetch service's image. Service <%s> doesn't exist.", id));
-	        	FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+				logger.warn("GetServiceImage - GET - Request failed - Unable to fetch service's image. "
+						+ "Service <{}> doesn't exist.", id);
+	        	FieldError error = new FieldError("Service","error",
+	        			messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 	            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 			}
 		}
 		catch (Exception e) {
 			logger.error("GetServiceImage - GET - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}  
 	}
@@ -402,39 +503,65 @@ public class ServiceController {
 			consumes = "application/json; charset=UTF-8",
 			produces = "application/json; charset=UTF-8",
 			method = RequestMethod.PUT)
+	@PreAuthorize("hasAuthority('USUARIO_PRESTADOR_GRATUITA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_PLATA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_ORO')"
+			+ " or hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> updateServiceImage(@PathVariable("id") Integer id, @RequestBody ObjectNode photoPayload) {
-		logger.info(String.format("UpdateServiceImage - PUT - Processing request for service's <%s> image.", id));
+		logger.info("UpdateServiceImage - PUT - Processing request for service's <{}> image.", id);
 		// parseamos el json object recibido y generamos el byte array validando la estructura del request al mismo tiempo.
 		try { 
 			JsonNode jsonPhotoPayload = photoPayload.get("foto");
 			if (jsonPhotoPayload != null) {
 				byte[] b64photo = jsonPhotoPayload.asText().getBytes();
-				if (serviceManager.getServiceById(id) != null) {
-					serviceManager.updateServiceImageById(id, Base64.getDecoder().decode(b64photo));
-					
-					logger.info("UpdateServiceImage - PUT - Exiting method, providing response resource to client.");
-					return new ResponseEntity<String>(HttpStatus.OK);
+				Service service = serviceManager.getServiceById(id);
+				if (service != null) {
+					String authenticatedUsername = 
+							((UserDetails)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
+					boolean isServiceAccountOrAdministrator = 
+							userService.isServiceAccountOrAdministrator(userService.getUserById(authenticatedUsername));
+					boolean isOwnerProvider = 
+							service.getUsuarioPrestador().getId().equalsIgnoreCase(authenticatedUsername);
+					// Verificamos que el servicio siendo procesado le pertenezca al usuario autenticado
+					if (isServiceAccountOrAdministrator || isOwnerProvider) {
+						serviceManager.updateServiceImageById(id, Base64.getDecoder().decode(b64photo));
+						
+						logger.info("UpdateServiceImage - PUT - Exiting method, providing response resource to client.");
+						return new ResponseEntity<String>(HttpStatus.OK);
+					}
+					else {
+						logger.warn("UpdateServiceImage - PUT - Request failed - Service <{}> doesn't belong to user <{}>.", 
+								id, authenticatedUsername);
+						FieldError error = new FieldError("Service","error",
+								messageSource.getMessage("service.doesnt.belong.to.user", new Integer[]{service.getId()}, Locale.getDefault()));
+						return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+					}
 		        }
 				else {
-					logger.warn(String.format("UpdateServiceImage - PUT - Request failed - Unable to update service's image. Service <%s> doesn't exist.", id));
-		        	FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+					logger.warn("UpdateServiceImage - PUT - Request failed - "
+							+ "Unable to update service's image. Service <{}> doesn't exist.", id);
+		        	FieldError error = new FieldError("Service","error",
+		        			messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 		            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 				}
 			}
 			else {
 				logger.warn("UpdateServiceImage - PUT - Request failed - Received malformed request, returning error to client.");
-	        	FieldError error = new FieldError("Service","foto",messageSource.getMessage("format.mismatch", null, Locale.getDefault()));
+	        	FieldError error = new FieldError("Service","foto",
+	        			messageSource.getMessage("format.mismatch", null, Locale.getDefault()));
 	        	return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.BAD_REQUEST);
 			}
 		}
 		catch (IllegalArgumentException e){
 			logger.warn("UpdateServiceImage - PUT - Request failed - Received invalid base64 image, returning error to client.");
-        	FieldError error =new FieldError("Service","foto",messageSource.getMessage("invalid.base64.image", null, Locale.getDefault()));
+        	FieldError error =new FieldError("Service","foto",
+        			messageSource.getMessage("invalid.base64.image", null, Locale.getDefault()));
         	return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.BAD_REQUEST);
 		}
 		catch (Exception e) {
 			logger.error("UpdateServiceImage - PUT - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		} 
 	}
@@ -446,24 +573,47 @@ public class ServiceController {
 			value = { "/services/{id}/photo" },
 			produces = "application/json; charset=UTF-8",
 			method = RequestMethod.DELETE)
+	@PreAuthorize("hasAuthority('USUARIO_PRESTADOR_GRATUITA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_PLATA')"
+			+ " or hasAuthority('USUARIO_PRESTADOR_ORO')"
+			+ " or hasAuthority('ADMINISTRATOR')")
     public ResponseEntity<?> deleteServiceImage(@PathVariable("id") Integer id) {
-		logger.info(String.format("DeleteServiceImage - DELETE - Processing request for service's <%s> image.", id));
+		logger.info("DeleteServiceImage - DELETE - Processing request for service's <{}> image.", id);
 		try {
-			if (serviceManager.getServiceById(id) != null) {
-				serviceManager.updateServiceImageById(id, null);
-				
-				logger.info("DeleteServiceImage - DELETE - Exiting method, providing response resource to client.");
-				return new ResponseEntity<String>(HttpStatus.OK);
+			Service service = serviceManager.getServiceById(id);
+			if (service != null) {
+				String authenticatedUsername = 
+						((UserDetails)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername();
+				boolean isServiceAccountOrAdministrator = 
+						userService.isServiceAccountOrAdministrator(userService.getUserById(authenticatedUsername));
+				boolean isOwnerProvider = 
+						service.getUsuarioPrestador().getId().equalsIgnoreCase(authenticatedUsername);
+				// Verificamos que el servicio siendo procesado le pertenezca al usuario autenticado
+				if (isServiceAccountOrAdministrator || isOwnerProvider) {
+					serviceManager.updateServiceImageById(id, null);
+					
+					logger.info("DeleteServiceImage - DELETE - Exiting method, providing response resource to client.");
+					return new ResponseEntity<String>(HttpStatus.OK);
+				}
+				else {
+					logger.warn("DeleteServiceImage - DELETE - Request failed - Service <{}> doesn't belong to user <{}>.", 
+							id, authenticatedUsername);
+					FieldError error = new FieldError("Service","error",
+							messageSource.getMessage("service.doesnt.belong.to.user", new Integer[]{service.getId()}, Locale.getDefault()));
+					return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+				}
 	        }
 			else {
-				logger.warn(String.format("DeleteServiceImage - DELETE - Request failed - Unable to delete service's image. Service <%s> doesn't exist.", id));
-	        	FieldError error = new FieldError("Service","error",messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
+				logger.warn("DeleteServiceImage - DELETE - Request failed - Unable to delete service's image. Service <{}> doesn't exist.", id);
+	        	FieldError error = new FieldError("Service","error",
+	        			messageSource.getMessage("service.doesnt.exist", new Integer[]{id}, Locale.getDefault()));
 	            return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
 			}
 		}
 		catch (Exception e) {
 			logger.error("DeleteServiceImage - DELETE - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Service","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
+			FieldError error = new FieldError("Service","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
 			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}

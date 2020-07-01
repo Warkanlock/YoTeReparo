@@ -1,5 +1,6 @@
 package com.yotereparo.model;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -8,6 +9,7 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.OneToOne;
 import javax.persistence.Table;
 import javax.persistence.Transient;
 
@@ -18,7 +20,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 @Entity
 @Table(name="presupuesto")
 public class Quote {
-	
 	// Constantes de estado
 	public static final String AWAITING_PROVIDER = "ESPERANDO_USUARIO_PRESTADOR";
 	public static final String AWAITING_CUSTOMER = "ESPERANDO_USUARIO_FINAL";
@@ -61,9 +62,14 @@ public class Quote {
 	private Float precioTotal;
 	
 	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-	@Column(name = "fecha_inicio_ejecucion_prupuesta", nullable = true)
+	@Column(name = "fecha_inicio_ejecucion_prupuesta", nullable = false)
 	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
 	private DateTime fechaInicioEjecucionPropuesta;
+	
+	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+	@Column(name = "fecha_fin_ejecucion_prupuesta", nullable = true)
+	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
+	private DateTime fechaFinEjecucionPropuesta;
 	
 	@Column(name = "incluye_insumos", nullable = true)
 	private boolean incluyeInsumos;
@@ -72,7 +78,7 @@ public class Quote {
 	private boolean incluyeAdicionales;
 		
 	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-	@Column(name = "fecha_solicitud", nullable = true)
+	@Column(name = "fecha_solicitud", nullable = false)
 	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
 	private DateTime fechaSolicitud;
 	
@@ -81,7 +87,19 @@ public class Quote {
 	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
 	private DateTime fechaRespuesta;
 	
+	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+	@Column(name = "fecha_creacion", nullable = false)
+	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
+	private DateTime fechaCreacion;
+	
 	private String estado;
+	
+	@ManyToOne(cascade=CascadeType.MERGE, fetch = FetchType.EAGER)
+	@JoinColumn(name="id_direccion_usuario_final", nullable=true)
+	private Address direccionUsuarioFinal;
+	
+	@OneToOne(mappedBy = "presupuesto")
+	private Contract contrato;
 	
 	public Quote() { }
 
@@ -135,6 +153,7 @@ public class Quote {
 	}
 
 	public Float getPrecioTotal() {
+		this.setPrecioTotal();
 		return precioTotal;
 	}
 
@@ -156,6 +175,14 @@ public class Quote {
 		this.fechaInicioEjecucionPropuesta = fechaInicioEjecucionPropuesta;
 	}
 	
+	public DateTime getFechaFinEjecucionPropuesta() {
+		return fechaFinEjecucionPropuesta;
+	}
+
+	public void setFechaFinEjecucionPropuesta(DateTime fechaFinEjecucionPropuesta) {
+		this.fechaFinEjecucionPropuesta = fechaFinEjecucionPropuesta;
+	}
+
 	public boolean isIncluyeInsumos() {
 		return incluyeInsumos;
 	}
@@ -188,12 +215,36 @@ public class Quote {
 		this.fechaRespuesta = fechaRespuesta;
 	}
 
+	public DateTime getFechaCreacion() {
+		return fechaCreacion;
+	}
+
+	public void setFechaCreacion(DateTime fechaCreacion) {
+		this.fechaCreacion = fechaCreacion;
+	}
+
 	public String getEstado() {
 		return estado;
 	}
 
 	public void setEstado(String estado) {
 		this.estado = estado;
+	}
+
+	public Address getDireccionUsuarioFinal() {
+		return direccionUsuarioFinal;
+	}
+
+	public void setDireccionUsuarioFinal(Address direccionUsuarioFinal) {
+		this.direccionUsuarioFinal = direccionUsuarioFinal;
+	}
+
+	public Contract getContrato() {
+		return contrato;
+	}
+
+	public void setContrato(Contract contrato) {
+		this.contrato = contrato;
 	}
 
 	@Override
@@ -215,6 +266,11 @@ public class Quote {
 				return false;
 		} else if (!descripcionSolicitud.equals(other.descripcionSolicitud))
 			return false;
+		if (direccionUsuarioFinal == null) {
+			if (other.direccionUsuarioFinal != null)
+				return false;
+		} else if (!direccionUsuarioFinal.equals(other.direccionUsuarioFinal))
+			return false;
 		if (estado == null) {
 			if (other.estado != null)
 				return false;
@@ -225,6 +281,11 @@ public class Quote {
 				return false;
 		} else if (!fechaInicioEjecucionPropuesta.equals(other.fechaInicioEjecucionPropuesta))
 			return false;
+		if (fechaFinEjecucionPropuesta == null) {
+			if (other.fechaFinEjecucionPropuesta != null)
+				return false;
+		} else if (!fechaFinEjecucionPropuesta.equals(other.fechaFinEjecucionPropuesta))
+			return false;
 		if (fechaRespuesta == null) {
 			if (other.fechaRespuesta != null)
 				return false;
@@ -234,6 +295,11 @@ public class Quote {
 			if (other.fechaSolicitud != null)
 				return false;
 		} else if (!fechaSolicitud.equals(other.fechaSolicitud))
+			return false;
+		if (fechaCreacion == null) {
+			if (other.fechaCreacion != null)
+				return false;
+		} else if (!fechaCreacion.equals(other.fechaCreacion))
 			return false;
 		if (incluyeAdicionales != other.incluyeAdicionales)
 			return false;
@@ -254,16 +320,24 @@ public class Quote {
 				return false;
 		} else if (!usuarioFinal.equals(other.usuarioFinal))
 			return false;
+		if (contrato == null) {
+			if (other.contrato != null)
+				return false;
+		} else if (!contrato.equals(other.contrato))
+			return false;
 		return true;
 	}
 
 	@Override
 	public String toString() {
-		return "Quote [id=" + id + ", servicio=" + servicio + ", usuarioFinal=" + usuarioFinal
+		Integer contratoAsString = (contrato != null) ? contrato.getId() : null;
+		return "Quote [id=" + id + ", servicio=" + servicio.getId() + ", usuarioFinal=" + usuarioFinal.getId()
 				+ ", descripcionSolicitud=" + descripcionSolicitud + ", descripcionRespuesta=" + descripcionRespuesta
 				+ ", precioPresupuestado=" + precioPresupuestado + ", precioTotal=" + precioTotal
-				+ ", fechaInicioEjecucionPropuesta=" + fechaInicioEjecucionPropuesta + ", incluyeInsumos="
-				+ incluyeInsumos + ", incluyeAdicionales=" + incluyeAdicionales + ", fechaSolicitud=" + fechaSolicitud
-				+ ", fechaRespuesta=" + fechaRespuesta + ", estado=" + estado + "]";
+				+ ", fechaInicioEjecucionPropuesta=" + fechaInicioEjecucionPropuesta + ", fechaFinEjecucionPropuesta="
+				+ fechaFinEjecucionPropuesta + ", incluyeInsumos=" + incluyeInsumos + ", incluyeAdicionales="
+				+ incluyeAdicionales + ", fechaSolicitud=" + fechaSolicitud + ", fechaRespuesta=" + fechaRespuesta
+				+ ", fechaCreacion=" + fechaCreacion + ", estado=" + estado + ", direccionUsuarioFinal="
+				+ direccionUsuarioFinal + ", contrato=" + contratoAsString + "]";
 	}
 }

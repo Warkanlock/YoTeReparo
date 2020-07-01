@@ -16,7 +16,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import com.yotereparo.model.PaymentMethod;
 import com.yotereparo.model.Requirement;
-import com.yotereparo.util.customvalidator.GreaterThan;
+import com.yotereparo.model.ServiceRatingEntry;
+import com.yotereparo.util.validation.GreaterThan;
 
 @GreaterThan(valueOf = "precioMaximo", greaterThanValueOf = "precioMinimo", message = "{service.precioMaximo.less.than.precioMinimo}")
 public class ServiceDto {
@@ -24,7 +25,7 @@ public class ServiceDto {
 	@JsonProperty(access = Access.READ_ONLY)
 	private Integer id;
 	
-	@NotEmpty(message = "{service.usuarioPrestador.not.empty}")
+	@JsonProperty(access = Access.READ_ONLY)
 	private String usuarioPrestador;
 	
 	@NotEmpty(message = "{service.titulo.not.empty}")
@@ -40,6 +41,12 @@ public class ServiceDto {
 	
 	@Size(max = 255, message = "{service.disponibilidad.too.long}")
 	private String disponibilidad;
+	
+	@JsonProperty(access = Access.READ_ONLY)
+	private Float valoracionPromedio;
+	
+	@NotNull(message = "{service.insitu.not.null}")
+	private boolean insitu;
 	
 	@NotNull(message = "{service.precioMaximo.not.null}")
 	@Digits(integer = 9, fraction = 2, message = "{service.precioMaximo.out.of.boundaries}")
@@ -62,7 +69,6 @@ public class ServiceDto {
 	@Min(value = 0, message="{service.precioAdicionales.less.than.min}")
 	private Float precioAdicionales;
 
-	@NotNull(message = "{service.horasEstimadasEjecucion.not.null}")
 	@Digits(integer = 5, fraction = 2, message = "{service.horasEstimadasEjecucion.out.of.boundaries}")
 	@Min(value = 0, message="{service.horasEstimadasEjecucion.less.than.min}")
 	private Float horasEstimadasEjecucion;
@@ -89,7 +95,10 @@ public class ServiceDto {
 	private Set<Requirement> requerimientos = new HashSet<Requirement>(0);
 	
 	@JsonProperty(access = Access.READ_ONLY)
-	private Set<QuoteDto> presupuestos = new HashSet<QuoteDto>(0);
+	private Set<MessageDto> mensajes = new HashSet<MessageDto>(0);
+	
+	@JsonProperty(access = Access.READ_ONLY)
+	private Set<ServiceRatingEntry> valoraciones = new HashSet<ServiceRatingEntry>(0);
 	
 	public ServiceDto() { }
 
@@ -101,13 +110,14 @@ public class ServiceDto {
 	public void setId(Integer id) {
 		this.id = id;
 	}
-
+	
+	@JsonIgnore
 	public String getUsuarioPrestador() {
 		return usuarioPrestador;
 	}
 
 	public void setUsuarioPrestador(String usuarioPrestador) {
-		this.usuarioPrestador = usuarioPrestador;
+		this.usuarioPrestador = (usuarioPrestador != null && !usuarioPrestador.isEmpty()) ? usuarioPrestador.toLowerCase() : null;
 	}
 
 	public String getTitulo() {
@@ -132,6 +142,23 @@ public class ServiceDto {
 
 	public void setDisponibilidad(String disponibilidad) {
 		this.disponibilidad = disponibilidad;
+	}
+
+	@JsonIgnore
+	public Float getValoracionPromedio() {
+		return valoracionPromedio;
+	}
+
+	public void setValoracionPromedio(Float valoracionPromedio) {
+		this.valoracionPromedio = valoracionPromedio;
+	}
+
+	public boolean isInsitu() {
+		return insitu;
+	}
+
+	public void setInsitu(boolean insitu) {
+		this.insitu = insitu;
 	}
 
 	public Float getPrecioMaximo() {
@@ -240,22 +267,39 @@ public class ServiceDto {
 	public void setRequerimientos(Set<Requirement> requerimientos) {
 		this.requerimientos = requerimientos;
 	}
-	
+
 	@JsonIgnore
-	public Set<QuoteDto> getPresupuestos() {
-		return presupuestos;
+	public Set<MessageDto> getMensajes() {
+		return mensajes;
 	}
 
-	public void setPresupuestos(Set<QuoteDto> presupuestos) {
-		this.presupuestos = presupuestos;
+	public void setMensajes(Set<MessageDto> mensajes) {
+		this.mensajes = mensajes;
 	}
 	
-	public void addPresupuesto(QuoteDto presupuesto) {
-		this.presupuestos.add(presupuesto);
+	public void addMensaje(MessageDto mensaje) {
+		this.mensajes.add(mensaje);
 	}
 	
-	public void removePresupuesto(QuoteDto presupuesto) {
-		this.presupuestos.remove(presupuesto);
+	public void removeMensaje(MessageDto mensaje) {
+		this.mensajes.remove(mensaje);
+	}
+
+	@JsonIgnore
+	public Set<ServiceRatingEntry> getValoraciones() {
+		return valoraciones;
+	}
+
+	public void setValoraciones(Set<ServiceRatingEntry> valoraciones) {
+		this.valoraciones = valoraciones;
+	}
+	
+	public void addValoracion(ServiceRatingEntry valoracion) {
+		this.valoraciones.add(valoracion);
+	}
+	
+	public void removeValoracion(ServiceRatingEntry valoracion) {
+		this.valoraciones.remove(valoracion);
 	}
 
 	@Override
@@ -265,13 +309,15 @@ public class ServiceDto {
 		result = prime * result + ((cantidadTrabajadores == null) ? 0 : cantidadTrabajadores.hashCode());
 		result = prime * result + ((descripcion == null) ? 0 : descripcion.hashCode());
 		result = prime * result + ((disponibilidad == null) ? 0 : disponibilidad.hashCode());
+		result = prime * result + (insitu ? 1231 : 1237);
 		result = prime * result + ((estado == null) ? 0 : estado.hashCode());
 		result = prime * result + (facturaEmitida ? 1231 : 1237);
 		result = prime * result + ((fechaCreacion == null) ? 0 : fechaCreacion.hashCode());
 		result = prime * result + ((horasEstimadasEjecucion == null) ? 0 : horasEstimadasEjecucion.hashCode());
 		result = prime * result + ((mediosDePago == null) ? 0 : mediosDePago.hashCode());
 		result = prime * result + ((requerimientos == null) ? 0 : requerimientos.hashCode());
-		result = prime * result + ((presupuestos == null) ? 0 : presupuestos.hashCode());
+		result = prime * result + ((valoraciones == null) ? 0 : valoraciones.hashCode());
+		result = prime * result + ((mensajes == null) ? 0 : mensajes.hashCode());
 		result = prime * result + ((precioAdicionales == null) ? 0 : precioAdicionales.hashCode());
 		result = prime * result + ((precioInsumos == null) ? 0 : precioInsumos.hashCode());
 		result = prime * result + ((precioMaximo == null) ? 0 : precioMaximo.hashCode());
@@ -306,6 +352,8 @@ public class ServiceDto {
 				return false;
 		} else if (!disponibilidad.equals(other.disponibilidad))
 			return false;
+		if (insitu != other.insitu)
+			return false;
 		if (estado == null) {
 			if (other.estado != null)
 				return false;
@@ -333,10 +381,15 @@ public class ServiceDto {
 				return false;
 		} else if (!requerimientos.equals(other.requerimientos))
 			return false;
-		if (presupuestos == null) {
-			if (other.presupuestos != null)
+		if (mensajes == null) {
+			if (other.mensajes != null)
 				return false;
-		} else if (!presupuestos.equals(other.presupuestos))
+		} else if (!mensajes.equals(other.mensajes))
+			return false;
+		if (valoraciones == null) {
+			if (other.valoraciones != null)
+				return false;
+		} else if (!valoraciones.equals(other.valoraciones))
 			return false;
 		if (precioAdicionales == null) {
 			if (other.precioAdicionales != null)
@@ -379,12 +432,13 @@ public class ServiceDto {
 	@Override
 	public String toString() {
 		return "ServiceDto [id=" + id + ", usuarioPrestador=" + usuarioPrestador + ", titulo=" + titulo
-				+ ", descripcion=" + descripcion + ", disponibilidad=" + disponibilidad + ", precioMaximo="
-				+ precioMaximo + ", precioMinimo=" + precioMinimo + ", precioPromedio=" + precioPromedio
-				+ ", precioInsumos=" + precioInsumos + ", precioAdicionales=" + precioAdicionales
-				+ ", horasEstimadasEjecucion=" + horasEstimadasEjecucion + ", cantidadTrabajadores="
-				+ cantidadTrabajadores + ", facturaEmitida=" + facturaEmitida + ", tipoServicio=" + tipoServicio
-				+ ", fechaCreacion=" + fechaCreacion + ", estado=" + estado + ", mediosDePago=" + mediosDePago
-				+ ", requerimientos=" + requerimientos + ", presupuestos=" + presupuestos + "]";
+				+ ", descripcion=" + descripcion + ", disponibilidad=" + disponibilidad + ", valoracionPromedio="
+				+ valoracionPromedio + ", insitu=" + insitu + ", precioMaximo=" + precioMaximo + ", precioMinimo="
+				+ precioMinimo + ", precioPromedio=" + precioPromedio + ", precioInsumos=" + precioInsumos
+				+ ", precioAdicionales=" + precioAdicionales + ", horasEstimadasEjecucion=" + horasEstimadasEjecucion
+				+ ", cantidadTrabajadores=" + cantidadTrabajadores + ", facturaEmitida=" + facturaEmitida
+				+ ", tipoServicio=" + tipoServicio + ", fechaCreacion=" + fechaCreacion + ", estado=" + estado
+				+ ", mediosDePago=" + mediosDePago + ", requerimientos=" + requerimientos + ", mensajes=" + mensajes
+				+ ", valoraciones=" + valoraciones + "]";
 	}
 }

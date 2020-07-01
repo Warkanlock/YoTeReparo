@@ -15,16 +15,13 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import com.yotereparo.controller.dto.UserDto;
 import com.yotereparo.model.User;
 import com.yotereparo.security.jwt.JwtResponse;
 import com.yotereparo.security.jwt.JwtUtils;
@@ -48,8 +45,6 @@ public class AuthController {
 	private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 	
 	@Autowired
-	UserController userController;
-	@Autowired
 	AuthenticationManager authenticationManager;
 	@Autowired
 	UserService userService;
@@ -69,12 +64,14 @@ public class AuthController {
 			produces = "application/json; charset=UTF-8", 
 			method = RequestMethod.POST)
 	public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
-		logger.info(String.format("AuthenticateUser - POST - Processing request for user <%s>.", loginRequest.getUsername()));
+		logger.info("AuthenticateUser - POST - Processing request for user <{}>.", loginRequest.getUsername());
+		ResponseEntity<?> response = ResponseEntity.noContent().build();
 		try {
 			User user = userService.getUserById(loginRequest.getUsername());
 			if (user != null) {
-				if (user.getFechaExpiracionContrasena().isAfterNow()) {
-					if (user.getEstado().equals(User.ACTIVE)) {
+				boolean isServiceAccountOrAdministrator = userService.isServiceAccountOrAdministrator(user);
+				if (isServiceAccountOrAdministrator || user.getFechaExpiracionContrasena().isAfterNow()) {
+					if (!user.getEstado().equals(User.BLOCKED)) {
 						try {
 							String password = SecurityUtils.encryptPassword(loginRequest.getPassword().concat(user.getSalt()));
 							
@@ -93,52 +90,49 @@ public class AuthController {
 									.map(item -> item.getAuthority())
 									.collect(Collectors.toList());
 							
-							logger.info(String.format("AuthenticateUser - POST - Successful Authentication for user <%s>.", loginRequest.getUsername()));
-							return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getUsername(), roles));
+							logger.info("AuthenticateUser - POST - Successful Authentication for user <{}>.", 
+									loginRequest.getUsername());
+							response = ResponseEntity.ok(new JwtResponse(jwt, userDetails.getUsername(), roles));
 						}
 						catch (BadCredentialsException e) {
 							// Si el usuario se autenticó incorrectamente, registramos este evento.
 							userService.registerFailedLoginAttempt(user);
 							
 							logger.warn("AuthenticateUser - POST - Request failed - Bad credentials.");
-							FieldError error = new FieldError("Auth","error",messageSource.getMessage("bad.credentials", null, Locale.getDefault()));
-							return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+							FieldError error = new FieldError("Authentication","error",
+									messageSource.getMessage("bad.credentials", null, Locale.getDefault()));
+							response = ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(miscUtils.getFormatedResponseError(error));
 						}
 					}
 					else {
 						logger.warn("AuthenticateUser - POST - Request failed - User is not an active user.");
-						FieldError error = new FieldError("User","error",messageSource.getMessage("user.not.active", new String[]{loginRequest.getUsername()}, Locale.getDefault()));
-						return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+						FieldError error = new FieldError("Authentication","error",
+								messageSource.getMessage("user.not.active", new String[]{loginRequest.getUsername()}, Locale.getDefault()));
+						response = ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(miscUtils.getFormatedResponseError(error));
 					}
 				}
 				else {
 					logger.warn("AuthenticateUser - POST - Request failed - Password is expired.");
-					FieldError error = new FieldError("User","error",messageSource.getMessage("user.password.expired", null, Locale.getDefault()));
-					return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.UNAUTHORIZED);
+					FieldError error = new FieldError("Authentication","error",
+							messageSource.getMessage("user.password.expired", null, Locale.getDefault()));
+					response = ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(miscUtils.getFormatedResponseError(error));
 				}
 			}
 			else {
-				logger.warn(String.format("AuthenticateUser - POST - Request failed - User with id <%s> not found.", loginRequest.getUsername()));
-				FieldError error = new FieldError("User","error",messageSource.getMessage("user.doesnt.exist", new String[]{loginRequest.getUsername()}, Locale.getDefault()));
-				return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.NOT_FOUND);
+				logger.warn("AuthenticateUser - POST - Request failed - User with id <{}> not found.", 
+						loginRequest.getUsername());
+				FieldError error = new FieldError("Authentication","error",
+						messageSource.getMessage("user.doesnt.exist", new String[]{loginRequest.getUsername()}, Locale.getDefault()));
+				response = ResponseEntity.status(HttpStatus.NOT_FOUND).body(miscUtils.getFormatedResponseError(error));
 			}
 		}
 		catch (Exception e) {
 			logger.error("AuthenticateUser - POST - Request failed - Error procesing request: ", e);
-			FieldError error = new FieldError("Auth","error",messageSource.getMessage("server.error", null, Locale.getDefault()));
-			return new ResponseEntity<>(miscUtils.getFormatedResponseError(error), HttpStatus.INTERNAL_SERVER_ERROR);
+			FieldError error = new FieldError("Authentication","error",
+					messageSource.getMessage("server.error", null, Locale.getDefault()));
+			response = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(miscUtils.getFormatedResponseError(error));
 		}
-	}
-	
-	/*
-	 * Proxy público para la creación de nuevos usuarios
-	 */
-	@RequestMapping(
-			value = { "/signup" },
-			consumes = "application/json; charset=UTF-8",
-			produces = "application/json; charset=UTF-8", 
-			method = RequestMethod.POST)
-	public ResponseEntity<?> registerUser(@RequestBody UserDto clientInput, UriComponentsBuilder ucBuilder, BindingResult result) {
-		return userController.createUser(clientInput, ucBuilder, result);
+		
+		return response;
 	}
 }

@@ -10,12 +10,14 @@ import { SessionContext } from "../Utils/SessionManage";
 import ResourceNotFound from "../Errors/ResourceNotFound";
 import Loading from "../Loading/Loading";
 import ModalServicio from "./ModalServicio";
+import { convertToStars } from "../Utils/RateService";
+import Mensajes from "../Mensajes/Mensajes";
+import { locationsAreEqual } from "history";
 
 const Servicio = (props) => {
-  let location = useLocation();
-  let history = useHistory();
-  let session = useContext(SessionContext);
-
+  const location = useLocation();
+  const history = useHistory();
+  const { session } = useContext(SessionContext);
   const [loading, setLoading] = useState(true);
   const [errorValidation, setErrors] = useState(null);
   const [modal, setModal] = useState(false);
@@ -30,6 +32,9 @@ const Servicio = (props) => {
         avaliable: location.state.avaliable,
         estimateTime: location.state.estimateTime,
         averagePrice: location.state.averagePrice,
+        id: location.state.id,
+        valoracionPromedio: location.state.valoracionPromedio,
+        mensajes: location.state.mensajes,
       });
       setLoading(false);
     } else {
@@ -50,24 +55,27 @@ const Servicio = (props) => {
           });
         return result;
       };
-      fetchData(
-        `http://localhost:8080/YoTeReparo/services/${props.match.params.id}`
-      ).then((resp) => {
-        setLoading(false);
-        if (resp.response != null) {
-          setErrors(resp.response.data);
-        } else {
-          console.log("aca");
-          setProperties({
-            body: resp.data.descripcion,
-            title: resp.data.titulo,
-            provider: resp.data.usuarioPrestador,
-            avaliable: resp.data.disponibilidad,
-            estimateTime: resp.data.horasEstimadasEjecucion,
-            averagePrice: resp.data.precioPromedio,
-          });
+      fetchData(`/YoTeReparo/services/${props.match.params.id}`).then(
+        (resp) => {
+          setLoading(false);
+          if (resp.response != null) {
+            setErrors(resp.response.data);
+          } else {
+            console.log(resp.data);
+            setProperties({
+              body: resp.data.descripcion,
+              title: resp.data.titulo,
+              provider: resp.data.usuarioPrestador,
+              avaliable: resp.data.disponibilidad,
+              estimateTime: resp.data.horasEstimadasEjecucion,
+              averagePrice: resp.data.precioPromedio,
+              id: resp.data.id,
+              valoracionPromedio: resp.data.valoracionPromedio,
+              mensajes: resp.data.mensajes,
+            });
+          }
         }
-      });
+      );
     }
   }, [location, props.match.params.id, session]); //if a loop is here check this session variable
 
@@ -89,6 +97,8 @@ const Servicio = (props) => {
         <Loading loadingMessage="Cargando el servicio. Por favor espera."></Loading>
       );
     } else {
+      const stars = convertToStars(properties.valoracionPromedio);
+
       return (
         <>
           <ElementContainer>
@@ -108,14 +118,14 @@ const Servicio = (props) => {
                         <div className="card-body">
                           <div className="row">
                             <div className="col-md-12">
-                              <h3 className="card-title">
-                                {props.match.params.id}
-                              </h3>
-                              <h3 className="card-title">
-                                {" "}
-                                {properties.title}
-                              </h3>
-                              {properties.body}
+                              <h3 className="card-title">{properties.title}</h3>
+                              <p>{properties.body}</p>
+                              <div className="lead">Servicio a cargo de </div>
+                              <p>{properties.provider}</p>
+                              <div className="lead">Precio promedio</div>
+                              <p>{properties.averagePrice}$</p>
+                              <div className="lead">Valoracion</div>
+                              <div className="mt-2">{stars}</div>
                             </div>
                           </div>
                         </div>
@@ -145,6 +155,7 @@ const Servicio = (props) => {
               </div>
             </div>
           </ElementContainer>
+          <Mensajes contentService={props.match.params.id} />
           <ModalServicio
             toggle={toggle}
             modal={modal}

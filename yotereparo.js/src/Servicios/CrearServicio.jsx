@@ -13,6 +13,7 @@ import Axios from "axios";
 import { useRef } from "react";
 import Errors from "../Errors/Errors";
 import { useHistory } from "react-router-dom";
+import NotAuth from "../Errors/NotAuth";
 
 // -> GET: /YoTeReparo/requirements
 // -> GET: /YoTeReparo/requirements/{id}
@@ -34,10 +35,12 @@ const CrearServicio = (props) => {
   const [mediosDePago, setMediosDePago] = useState([]);
   const [requerimientos, setRequerimientos] = useState([]);
   const [emitirFactura, setEmitirFactura] = useState(false);
+  const [requiereDomicilio, setRequiereDomicilio] = useState(false);
   const refRequerimientos = useRef([React.createRef()]);
   const refMediosDePago = useRef([React.createRef()]);
   const history = useHistory();
-  const session = useContext(SessionContext);
+  const { session } = useContext(SessionContext);
+  const [auth, setAuth] = useState(false);
 
   //We use this object in the handleSubmit in order to cross over all the data
   let [service, setService] = useState({
@@ -79,9 +82,10 @@ const CrearServicio = (props) => {
       precioMinimo: preciosRange.min,
       precioInsumos: service.precioInsumos,
       precioAdicionales: service.precioAdicionales,
-      horasEstimadasEjecucion: horasEstimadasEjecucion,
+      horasEstimadasEjecucion: horasEstimadasEjecucion || null,
       cantidadTrabajadores: cantidadTrabajadores,
-      facturaEmitida: !emitirFactura,
+      insitu: requiereDomicilio,
+      facturaEmitida: emitirFactura,
       tipoServicio:
         tipoServicioSeleccionado[0] === undefined
           ? "null"
@@ -97,11 +101,7 @@ const CrearServicio = (props) => {
       },
     };
 
-    Axios.post(
-      "http://localhost:8080/YoTeReparo/services/",
-      requestService,
-      requestConfig
-    )
+    Axios.post("/YoTeReparo/services/", requestService, requestConfig)
       .then((response) => {
         if (response.status === 400) {
           console.log(response.json);
@@ -147,7 +147,10 @@ const CrearServicio = (props) => {
 
     setCantidadTrabajadores(0);
     setHorasEstimadasEjecucion(0);
-    setPreciosRange(0);
+    setPreciosRange({
+      min: 0,
+      max: 0,
+    });
   };
 
   const clearRequerimientos = () => {
@@ -187,310 +190,341 @@ const CrearServicio = (props) => {
   };
 
   useEffect(() => {
-    fetchData(
-      "http://localhost:8080/YoTeReparo/servicetypes",
-      setTiposServicio
-    );
-    fetchData(
-      "http://localhost:8080/YoTeReparo/paymentmethods",
-      setMediosDePago
-    );
+    fetchData("/YoTeReparo/servicetypes", setTiposServicio);
+    fetchData("/YoTeReparo/paymentmethods", setMediosDePago);
 
-    fetchData(
-      "http://localhost:8080/YoTeReparo/requirements",
-      setRequerimientos
-    );
+    fetchData("/YoTeReparo/requirements", setRequerimientos);
+    if (session.security.roles.length <= 1) {
+      setAuth(false);
+    } else {
+      setAuth(true);
+    }
   }, []);
 
-  return (
-    <div className="registercentered card-center-form">
-      <div className="row">
-        <div className="col-md-12">
-          <ElementContainer>
-            <div className="text-center">
-              <div className="lead mb-2">
-                Crear Servicio{" "}
-                <Button size="sm" color="info" onClick={clearAll}>
-                  Limpiar Seleccion
-                </Button>
-              </div>
-            </div>
-            <Errors formErrors={formErrors}></Errors>
-            <Form onSubmit={handleSubmit}>
-              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
-                <Label for="titulo" className="mr-sm-2 font-weight-bold">
-                  TITULO SERVICIO
-                </Label>
-                <Input
-                  type="text"
-                  name="titulo"
-                  id="titulo"
-                  placeholder="Especifique un titulo para el servicio a prestar..."
-                  onChange={(e) => {
-                    handleChange(e);
-                  }}
-                />
-              </FormGroup>
-              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
-                <Label for="descripcion" className="mr-sm-2 font-weight-bold">
-                  DESCRIPCION SERVICIO
-                </Label>
-                <Input
-                  type="text"
-                  name="descripcion"
-                  id="descripcion"
-                  placeholder="Especifique una descripcion para el servicio a prestar..."
-                  onChange={(e) => {
-                    handleChange(e);
-                  }}
-                />
-              </FormGroup>
-              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
-                <Label
-                  for="disponibilidad"
-                  className="mr-sm-2 font-weight-bold"
-                >
-                  DISPONIBILIDAD SERVICIO
-                </Label>
-                <Input
-                  type="text"
-                  name="disponibilidad"
-                  id="disponibilidad"
-                  placeholder="Cuanto estas disponible?"
-                  onChange={(e) => {
-                    handleChange(e);
-                  }}
-                />
-              </FormGroup>
-              <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
-                <Label for="rubroSelect" className="mr-sm-2 font-weight-bold">
-                  PRECIO DEL SERVICIO
-                </Label>
-                <div className="mx-4 my-4">
-                  <InputRange
-                    formatLabel={(value) => `${value} $`}
-                    maxValue={9999}
-                    minValue={0}
-                    value={preciosRange}
-                    onChange={(value) => setPreciosRange(value)}
-                  />
-                </div>
-              </FormGroup>
-              <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
-                <div className="row">
-                  <div className="col-md-6">
-                    <Label
-                      for="precioInsumo"
-                      className="mr-sm-2 font-weight-bold"
-                    >
-                      PRECIO INSUMOS ($)
-                    </Label>
-                    <Input
-                      type="number"
-                      step="50"
-                      min="0"
-                      name="precioInsumos"
-                      id="precioInsumos"
-                      placeholder="Insumos"
-                      onChange={(e) => {
-                        handleChange(e);
-                      }}
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <Label
-                      for="precioAdicionales"
-                      className="mr-sm-2 font-weight-bold"
-                    >
-                      PRECIO ADICIONALES ($)
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="50"
-                      name="precioAdicionales"
-                      id="precioAdicionales"
-                      placeholder="Adicionales"
-                      onChange={(e) => {
-                        handleChange(e);
-                      }}
-                    />
-                  </div>
-                </div>
-              </FormGroup>
-              <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
-                <Label for="horasRange" className="mr-sm-2 font-weight-bold">
-                  HORAS ESTIMADAS APROXIMADAS
-                </Label>
-                <div className="mx-4 my-4">
-                  <InputRange
-                    formatLabel={(value) => `${value} hs`}
-                    maxValue={10}
-                    minValue={0}
-                    step={0.5}
-                    value={horasEstimadasEjecucion}
-                    onChange={(value) => setHorasEstimadasEjecucion(value)}
-                  />
-                </div>
-              </FormGroup>
-              <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
-                <Label
-                  for="cantidadTrabajadores"
-                  className="mr-sm-2 font-weight-bold"
-                >
-                  TRABAJADORES ESTIMADOS
-                </Label>
-                <div className="mx-4 my-4">
-                  <InputRange
-                    formatLabel={(value) => `${value}`}
-                    maxValue={10}
-                    minValue={0}
-                    value={cantidadTrabajadores}
-                    onChange={(value) => setCantidadTrabajadores(value)}
-                  />
-                </div>
-              </FormGroup>
-              <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
-                <Label
-                  for="facturaEmitida"
-                  className="mr-sm-2 font-weight-bold"
-                >
-                  EMITIR FACTURA
-                </Label>
-                <Input
-                  className="ml-4 mr-4"
-                  type="checkbox"
-                  name="emitirFactura"
-                  id="emitirFactura"
-                  defaultChecked={emitirFactura}
-                  placeholder="Emitir Factura"
-                  onChange={(e) => {
-                    setEmitirFactura(!e.target.checked);
-                  }}
-                />
-              </FormGroup>
-              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
-                <Label for="tipoServicio" className="mr-sm-2 font-weight-bold">
-                  TIPO DE SERVICIO
-                </Label>
-                <Input
-                  type="select"
-                  name="tipoServicio"
-                  id="tipoServicio"
-                  onChange={(e) => {
-                    handleChange(e);
-                  }}
-                >
-                  <option value="" hidden>
-                    Seleccione un servicio
-                  </option>
-                  {tiposServicio.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.descripcion}
-                    </option>
-                  ))}
-                </Input>
-              </FormGroup>
-              <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
-                <div className="row">
-                  <div className="col-6">
-                    <div className="float-left">
-                      <Label for="titulo" className="mr-sm-2 font-weight-bold">
-                        MEDIOS DE PAGO
-                      </Label>
-                    </div>
-                  </div>
-                  <div className="col-6">
-                    <div className="float-right">
-                      <Button
-                        size="sm"
-                        color="link"
-                        onClick={clearMediosDePago}
-                      >
-                        Limpiar Seleccion
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                <Input
-                  type="select"
-                  multiple
-                  innerRef={refMediosDePago}
-                  name="mediosDePago"
-                  id="mediosDePago"
-                  onChange={(e) => {
-                    handleChange(e);
-                  }}
-                >
-                  <option value="" disabled hidden>
-                    Seleccione uno o mas metodos de pago
-                  </option>
-                  {mediosDePago.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.descripcion}
-                    </option>
-                  ))}
-                </Input>
-              </FormGroup>
-              <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
-                <div className="row">
-                  <div className="col-6 ">
-                    <div className="float-left">
-                      <Label for="titulo" className="mr-sm-2 font-weight-bold">
-                        REQUERIMIENTOS ADICIONALES
-                      </Label>
-                    </div>
-                  </div>
-                  <div className="col-6">
-                    <div className="float-right">
-                      <Button
-                        size="sm"
-                        color="link"
-                        onClick={clearRequerimientos}
-                      >
-                        Limpiar Seleccion
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <Input
-                  type="select"
-                  multiple
-                  name="requerimientos"
-                  innerRef={refRequerimientos}
-                  id="requerimientos"
-                  onChange={(e) => {
-                    handleChange(e);
-                  }}
-                >
-                  <option value="" disabled hidden>
-                    Seleccione uno o mas requerimientos del servicio
-                  </option>
-                  {requerimientos.map((type, i) => (
-                    <option key={type.id} value={type.id}>
-                      {type.descripcion}
-                    </option>
-                  ))}
-                </Input>
-              </FormGroup>
+  if (auth) {
+    return (
+      <div className="registercentered card-center-form">
+        <div className="row">
+          <div className="col-md-12">
+            <ElementContainer>
               <div className="text-center">
-                <Button color="primary" size="lg" block className="mt-4">
-                  {!isCreationService ? (
-                    "INGRESAR"
-                  ) : (
-                    <div className="spinner-border" role="status">
-                      <span className="sr-only">Creando Usuario...</span>
-                    </div>
-                  )}
-                </Button>
+                <div className="lead mb-2">
+                  Crear Servicio{" "}
+                  <Button size="sm" color="info" onClick={clearAll}>
+                    Limpiar Seleccion
+                  </Button>
+                </div>
               </div>
-            </Form>
-          </ElementContainer>
+              <Errors formErrors={formErrors}></Errors>
+              <Form onSubmit={handleSubmit}>
+                <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                  <Label for="titulo" className="mr-sm-2 font-weight-bold">
+                    TITULO SERVICIO
+                  </Label>
+                  <Input
+                    type="text"
+                    name="titulo"
+                    id="titulo"
+                    placeholder="Especifique un titulo para el servicio a prestar..."
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  />
+                </FormGroup>
+                <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                  <Label for="descripcion" className="mr-sm-2 font-weight-bold">
+                    DESCRIPCION SERVICIO
+                  </Label>
+                  <Input
+                    type="text"
+                    name="descripcion"
+                    id="descripcion"
+                    placeholder="Especifique una descripcion para el servicio a prestar..."
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  />
+                </FormGroup>
+                <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                  <Label
+                    for="disponibilidad"
+                    className="mr-sm-2 font-weight-bold"
+                  >
+                    DISPONIBILIDAD SERVICIO
+                  </Label>
+                  <Input
+                    type="text"
+                    name="disponibilidad"
+                    id="disponibilidad"
+                    placeholder="Cuanto estas disponible?"
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  />
+                </FormGroup>
+                <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
+                  <Label for="rubroSelect" className="mr-sm-2 font-weight-bold">
+                    PRECIO DEL SERVICIO
+                  </Label>
+                  <div className="mx-4 my-4">
+                    <InputRange
+                      formatLabel={(value) => `${value} $`}
+                      maxValue={9999}
+                      minValue={0}
+                      value={preciosRange}
+                      onChange={(value) => setPreciosRange(value)}
+                    />
+                  </div>
+                </FormGroup>
+                <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
+                  <div className="row">
+                    <div className="col-md-6">
+                      <Label
+                        for="precioInsumo"
+                        className="mr-sm-2 font-weight-bold"
+                      >
+                        PRECIO INSUMOS ($)
+                      </Label>
+                      <Input
+                        type="number"
+                        step="50"
+                        min="0"
+                        name="precioInsumos"
+                        id="precioInsumos"
+                        placeholder="Insumos"
+                        onChange={(e) => {
+                          handleChange(e);
+                        }}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <Label
+                        for="precioAdicionales"
+                        className="mr-sm-2 font-weight-bold"
+                      >
+                        PRECIO ADICIONALES ($)
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="50"
+                        name="precioAdicionales"
+                        id="precioAdicionales"
+                        placeholder="Adicionales"
+                        onChange={(e) => {
+                          handleChange(e);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </FormGroup>
+                <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
+                  <Label for="horasRange" className="mr-sm-2 font-weight-bold">
+                    HORAS ESTIMADAS APROXIMADAS
+                  </Label>
+                  <div className="mx-4 my-4">
+                    <InputRange
+                      formatLabel={(value) => `${value} hs`}
+                      maxValue={10}
+                      minValue={0}
+                      step={0.5}
+                      value={horasEstimadasEjecucion}
+                      onChange={(value) => setHorasEstimadasEjecucion(value)}
+                    />
+                  </div>
+                </FormGroup>
+                <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
+                  <Label
+                    for="cantidadTrabajadores"
+                    className="mr-sm-2 font-weight-bold"
+                  >
+                    TRABAJADORES ESTIMADOS
+                  </Label>
+                  <div className="mx-4 my-4">
+                    <InputRange
+                      formatLabel={(value) => `${value}`}
+                      maxValue={10}
+                      minValue={0}
+                      value={cantidadTrabajadores}
+                      onChange={(value) => setCantidadTrabajadores(value)}
+                    />
+                  </div>
+                </FormGroup>
+                <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
+                  <div className="row">
+                    <div className="col-md-6">
+                      <Label
+                        for="facturaEmitida"
+                        className="mr-sm-2 font-weight-bold"
+                      >
+                        EMITIR FACTURA
+                      </Label>
+                      <Input
+                        className="ml-4 mr-4"
+                        type="checkbox"
+                        name="emitirFactura"
+                        id="emitirFactura"
+                        defaultChecked={emitirFactura}
+                        placeholder="Emitir Factura"
+                        onChange={(e) => {
+                          setEmitirFactura(e.target.checked);
+                        }}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <Label
+                        for="requiereDomicilio"
+                        className="mr-sm-2 font-weight-bold"
+                      >
+                        REQUIERE VISITA DOMICILIO
+                      </Label>
+                      <Input
+                        className="ml-4 mr-4"
+                        type="checkbox"
+                        name="requiereDomicilio"
+                        id="requiereDomicilio"
+                        defaultChecked={requiereDomicilio}
+                        placeholder="Requiere Visita Domicilio"
+                        onChange={(e) => {
+                          setRequiereDomicilio(e.target.checked);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </FormGroup>
+                <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                  <Label
+                    for="tipoServicio"
+                    className="mr-sm-2 font-weight-bold"
+                  >
+                    TIPO DE SERVICIO
+                  </Label>
+                  <Input
+                    type="select"
+                    name="tipoServicio"
+                    id="tipoServicio"
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  >
+                    <option value="" hidden>
+                      Seleccione un servicio
+                    </option>
+                    {tiposServicio.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.descripcion}
+                      </option>
+                    ))}
+                  </Input>
+                </FormGroup>
+                <FormGroup className="mb-2 mt-2 mr-sm-2 mb-sm-2">
+                  <div className="row">
+                    <div className="col-6">
+                      <div className="float-left">
+                        <Label
+                          for="titulo"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          MEDIOS DE PAGO
+                        </Label>
+                      </div>
+                    </div>
+                    <div className="col-6">
+                      <div className="float-right">
+                        <Button
+                          size="sm"
+                          color="link"
+                          onClick={clearMediosDePago}
+                        >
+                          Limpiar Seleccion
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <Input
+                    type="select"
+                    multiple
+                    innerRef={refMediosDePago}
+                    name="mediosDePago"
+                    id="mediosDePago"
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  >
+                    <option value="" disabled hidden>
+                      Seleccione uno o mas metodos de pago
+                    </option>
+                    {mediosDePago.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.descripcion}
+                      </option>
+                    ))}
+                  </Input>
+                </FormGroup>
+                <FormGroup className="mb-2 mr-sm-2 mb-sm-2">
+                  <div className="row">
+                    <div className="col-6 ">
+                      <div className="float-left">
+                        <Label
+                          for="titulo"
+                          className="mr-sm-2 font-weight-bold"
+                        >
+                          REQUERIMIENTOS ADICIONALES
+                        </Label>
+                      </div>
+                    </div>
+                    <div className="col-6">
+                      <div className="float-right">
+                        <Button
+                          size="sm"
+                          color="link"
+                          onClick={clearRequerimientos}
+                        >
+                          Limpiar Seleccion
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Input
+                    type="select"
+                    multiple
+                    name="requerimientos"
+                    innerRef={refRequerimientos}
+                    id="requerimientos"
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  >
+                    <option value="" disabled hidden>
+                      Seleccione uno o mas requerimientos del servicio
+                    </option>
+                    {requerimientos.map((type, i) => (
+                      <option key={type.id} value={type.id}>
+                        {type.descripcion}
+                      </option>
+                    ))}
+                  </Input>
+                </FormGroup>
+                <div className="text-center">
+                  <Button color="primary" size="lg" block className="mt-4">
+                    {!isCreationService ? (
+                      "INGRESAR"
+                    ) : (
+                      <div className="spinner-border" role="status">
+                        <span className="sr-only">Creando Usuario...</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
+              </Form>
+            </ElementContainer>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+  return <NotAuth></NotAuth>;
 };
 
 export default CrearServicio;

@@ -13,8 +13,12 @@ import org.joda.time.DateTime;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonProperty.Access;
+import com.yotereparo.model.Address;
 import com.yotereparo.model.Quote;
+import com.yotereparo.util.validation.GreaterThan;
 
+@GreaterThan(valueOf = "fechaFinEjecucionPropuesta", greaterThanValueOf = "fechaInicioEjecucionPropuesta",
+	message = "{quote.fechaFinEjecucionPropuesta.less.than.fechaInicioEjecucionPropuesta}")
 public class QuoteDto {
 	
 	@JsonProperty(access = Access.READ_ONLY)
@@ -23,7 +27,7 @@ public class QuoteDto {
 	@NotNull(message = "{quote.servicio.not.null}")
 	private Integer servicio;
 	
-	@NotEmpty(message = "{quote.usuarioFinal.not.null}")
+	@JsonProperty(access = Access.READ_ONLY)
 	private String usuarioFinal;
 	
 	@Size(max = 255, message = "{quote.descripcionSolicitud.too.long}")
@@ -39,8 +43,12 @@ public class QuoteDto {
 	@JsonProperty(access = Access.READ_ONLY)
 	private Float precioTotal;
 	
+	@NotNull(message = "{quote.fechaInicioEjecucionPropuesta.not.null}")
 	@Future(message = "{quote.fechaInicioEjecucionPropuesta.future}")
 	private DateTime fechaInicioEjecucionPropuesta;
+	
+	@Future(message = "{quote.fechaFinEjecucionPropuesta.future}")
+	private DateTime fechaFinEjecucionPropuesta;
 
 	@NotNull(message = "{quote.incluyeInsumos.not.null}")
 	private boolean incluyeInsumos;
@@ -53,10 +61,20 @@ public class QuoteDto {
 	
 	@JsonProperty(access = Access.READ_ONLY)
 	private DateTime fechaRespuesta;
+	
+	@JsonProperty(access = Access.READ_ONLY)
+	private DateTime fechaCreacion;
 
 	@NotEmpty(message = "{quote.estado.not.empty}")
 	@Pattern(regexp = Quote.STATUS_LIST_REGEXP, message = "{quote.estado.pattern}")
 	private String estado;
+	
+	// No debe ser null siempre y cuando el servicio asociado sea Insitu.
+	// Esto lo validamos en el ValidationUtils, pero sería más prolijo armar un custom validator.
+	private Address direccionUsuarioFinal;
+	
+	@JsonProperty(access = Access.READ_ONLY)
+	private Integer contrato;
 	
 	public QuoteDto() { }
 
@@ -77,12 +95,13 @@ public class QuoteDto {
 		this.servicio = servicio;
 	}
 
+	@JsonIgnore
 	public String getUsuarioFinal() {
 		return usuarioFinal;
 	}
 
 	public void setUsuarioFinal(String usuarioFinal) {
-		this.usuarioFinal = usuarioFinal;
+		this.usuarioFinal = (usuarioFinal != null && !usuarioFinal.isEmpty()) ? usuarioFinal.toLowerCase() : null;
 	}
 
 	public String getDescripcionSolicitud() {
@@ -136,6 +155,18 @@ public class QuoteDto {
 		this.fechaInicioEjecucionPropuesta = new DateTime(fechaInicioEjecucionPropuesta);
 	}
 
+	public DateTime getFechaFinEjecucionPropuesta() {
+		return fechaFinEjecucionPropuesta;
+	}
+
+	public void setFechaFinEjecucionPropuesta(DateTime fechaFinEjecucionPropuesta) {
+		this.fechaFinEjecucionPropuesta = fechaFinEjecucionPropuesta;
+	}
+	
+	public void setFechaFinEjecucionPropuesta(String fechaFinEjecucionPropuesta) {
+		this.fechaFinEjecucionPropuesta = new DateTime(fechaFinEjecucionPropuesta);
+	}
+
 	public boolean isIncluyeInsumos() {
 		return incluyeInsumos;
 	}
@@ -170,12 +201,38 @@ public class QuoteDto {
 		this.fechaRespuesta = fechaRespuesta;
 	}
 
+	@JsonIgnore
+	public DateTime getFechaCreacion() {
+		return fechaCreacion;
+	}
+
+	public void setFechaCreacion(DateTime fechaCreacion) {
+		this.fechaCreacion = fechaCreacion;
+	}
+
 	public String getEstado() {
 		return estado;
 	}
 
 	public void setEstado(String estado) {
 		this.estado = estado;
+	}
+
+	public Address getDireccionUsuarioFinal() {
+		return direccionUsuarioFinal;
+	}
+
+	public void setDireccionUsuarioFinal(Address direccionUsuarioFinal) {
+		this.direccionUsuarioFinal = direccionUsuarioFinal;
+	}
+
+	@JsonIgnore
+	public Integer getContrato() {
+		return contrato;
+	}
+
+	public void setContrato(Integer contrato) {
+		this.contrato = contrato;
 	}
 
 	@Override
@@ -187,12 +244,17 @@ public class QuoteDto {
 		result = prime * result + ((estado == null) ? 0 : estado.hashCode());
 		result = prime * result
 				+ ((fechaInicioEjecucionPropuesta == null) ? 0 : fechaInicioEjecucionPropuesta.hashCode());
+		result = prime * result
+				+ ((fechaFinEjecucionPropuesta == null) ? 0 : fechaFinEjecucionPropuesta.hashCode());
 		result = prime * result + ((fechaRespuesta == null) ? 0 : fechaRespuesta.hashCode());
 		result = prime * result + ((fechaSolicitud == null) ? 0 : fechaSolicitud.hashCode());
+		result = prime * result + ((fechaCreacion == null) ? 0 : fechaCreacion.hashCode());
 		result = prime * result + (incluyeAdicionales ? 1231 : 1237);
 		result = prime * result + (incluyeInsumos ? 1231 : 1237);
 		result = prime * result + ((precioPresupuestado == null) ? 0 : precioPresupuestado.hashCode());
+		result = prime * result + ((direccionUsuarioFinal == null) ? 0 : direccionUsuarioFinal.hashCode());
 		result = prime * result + ((servicio == null) ? 0 : servicio.hashCode());
+		result = prime * result + ((contrato == null) ? 0 : contrato.hashCode());
 		result = prime * result + ((usuarioFinal == null) ? 0 : usuarioFinal.hashCode());
 		return result;
 	}
@@ -226,6 +288,11 @@ public class QuoteDto {
 				return false;
 		} else if (!fechaInicioEjecucionPropuesta.equals(other.fechaInicioEjecucionPropuesta))
 			return false;
+		if (fechaFinEjecucionPropuesta == null) {
+			if (other.fechaFinEjecucionPropuesta != null)
+				return false;
+		} else if (!fechaFinEjecucionPropuesta.equals(other.fechaFinEjecucionPropuesta))
+			return false;
 		if (fechaRespuesta == null) {
 			if (other.fechaRespuesta != null)
 				return false;
@@ -236,6 +303,11 @@ public class QuoteDto {
 				return false;
 		} else if (!fechaSolicitud.equals(other.fechaSolicitud))
 			return false;
+		if (fechaCreacion == null) {
+			if (other.fechaCreacion != null)
+				return false;
+		} else if (!fechaCreacion.equals(other.fechaCreacion))
+			return false;
 		if (incluyeAdicionales != other.incluyeAdicionales)
 			return false;
 		if (incluyeInsumos != other.incluyeInsumos)
@@ -244,6 +316,11 @@ public class QuoteDto {
 			if (other.precioPresupuestado != null)
 				return false;
 		} else if (!precioPresupuestado.equals(other.precioPresupuestado))
+			return false;
+		if (direccionUsuarioFinal == null) {
+			if (other.direccionUsuarioFinal != null)
+				return false;
+		} else if (!direccionUsuarioFinal.equals(other.direccionUsuarioFinal))
 			return false;
 		if (servicio == null) {
 			if (other.servicio != null)
@@ -255,6 +332,11 @@ public class QuoteDto {
 				return false;
 		} else if (!usuarioFinal.equals(other.usuarioFinal))
 			return false;
+		if (contrato == null) {
+			if (other.contrato != null)
+				return false;
+		} else if (!contrato.equals(other.contrato))
+			return false;
 		return true;
 	}
 
@@ -263,8 +345,10 @@ public class QuoteDto {
 		return "QuoteDto [id=" + id + ", servicio=" + servicio + ", usuarioFinal=" + usuarioFinal
 				+ ", descripcionSolicitud=" + descripcionSolicitud + ", descripcionRespuesta=" + descripcionRespuesta
 				+ ", precioPresupuestado=" + precioPresupuestado + ", precioTotal=" + precioTotal
-				+ ", fechaInicioEjecucionPropuesta=" + fechaInicioEjecucionPropuesta + ", incluyeInsumos="
-				+ incluyeInsumos + ", incluyeAdicionales=" + incluyeAdicionales + ", fechaSolicitud=" + fechaSolicitud
-				+ ", fechaRespuesta=" + fechaRespuesta + ", estado=" + estado + "]";
+				+ ", fechaInicioEjecucionPropuesta=" + fechaInicioEjecucionPropuesta + ", fechaFinEjecucionPropuesta="
+				+ fechaFinEjecucionPropuesta + ", incluyeInsumos=" + incluyeInsumos + ", incluyeAdicionales="
+				+ incluyeAdicionales + ", fechaSolicitud=" + fechaSolicitud + ", fechaRespuesta=" + fechaRespuesta
+				+ ", fechaCreacion=" + fechaCreacion + ", estado=" + estado + ", direccionUsuarioFinal="
+				+ direccionUsuarioFinal + ", contrato=" + contrato + "]";
 	}
 }

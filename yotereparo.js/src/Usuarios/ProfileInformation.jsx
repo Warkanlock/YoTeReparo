@@ -18,7 +18,7 @@ function ProfileInformation(props) {
         })}
       </h5>
       <InputField
-        fieldTitle="Username"
+        fieldTitle="Usuario"
         fieldValue={props.profile.id}
         fieldActivate={true}
         fieldChange={props.handleChange}
@@ -28,9 +28,10 @@ function ProfileInformation(props) {
         <InputField
           fieldTitle="Email"
           fieldValue={props.profile.email}
-          fieldActivate={true}
+          fieldActivate={props.modify}
           fieldChange={props.handleChange}
-          fieldId={"email"}
+          type="email"
+          fieldId={"email-field"}
         ></InputField>
         <InputField
           fieldTitle="Nombre"
@@ -59,6 +60,7 @@ function ProfileInformation(props) {
               modify={props.modify}
               activateOnSave={props.activateSave}
               activateOnEdit={props.activateEdit}
+              activateOnCancel={props.activateCancel}
             ></ButtonSave>
           }
         </div>
@@ -68,7 +70,7 @@ function ProfileInformation(props) {
             className="btn btn-success btn-block mt-2"
             onClick={props.modifyAddress}
           >
-            AGREGAR DIRECCIONES
+            DIRECCIONES
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@ import com.yotereparo.dao.ServiceTypeDaoImpl;
 import com.yotereparo.model.ServiceType;
 
 /**
- * Capa de servicio para Ciudades.
+ * Capa de servicio para Tipos de Servicio.
  * El objetivo de la misma es servir de interfaz entre el modelo y la capa de acceso a datos,
  * expone métodos para uso público en el contexto de la aplicación.
  * 
@@ -36,12 +36,12 @@ public class ServiceTypeServiceImpl implements ServiceTypeService {
 	}
 
 	public ServiceType getServiceTypeById(Integer id) {
-		logger.debug(String.format("Fetching service type by id <%s>", id));
+		logger.debug("Fetching service type by id <{}>", id);
 		return dao.getServiceTypeById(id);
 	}
 	
 	public ServiceType getServiceTypeByDescription(String description) {
-		logger.debug(String.format("Fetching service type <%s>", description));
+		logger.debug("Fetching service type <{}>", description);
 		return dao.getServiceTypeByDescription(description);
 	}
 }

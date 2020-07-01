@@ -17,7 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import com.yotereparo.model.Address;
 import com.yotereparo.model.District;
 import com.yotereparo.model.Role;
-import com.yotereparo.util.customvalidator.FieldsNullityMatch;
+import com.yotereparo.util.validation.FieldsNullityMatch;
 
 @FieldsNullityMatch.List({ 
     @FieldsNullityMatch(
@@ -94,162 +94,189 @@ public class UserDto {
 	@JsonProperty(access = Access.READ_ONLY)
 	private Set<ServiceDto> servicios = new HashSet<ServiceDto>(0);
 	
-	@JsonProperty(access = Access.READ_ONLY)
-	private Set<QuoteDto> presupuestos = new HashSet<QuoteDto>(0);
-	
 	public String getId() {
 		return id;
 	}
+	
 	public void setId(String id) {
-		this.id = id;
+		this.id = (id != null && !id.isEmpty()) ? id.toLowerCase() : null;
 	}
+	
 	public String getNombre() {
 		return nombre;
 	}
+	
 	public void setNombre(String nombre) {
 		this.nombre = nombre;
 	}
+	
 	public String getApellido() {
 		return apellido;
 	}
+	
 	public void setApellido(String apellido) {
 		this.apellido = apellido;
 	}
+	
 	public String getEmail() {
 		return email;
 	}
+	
 	public void setEmail(String email) {
 		this.email = email;
 	}
+	
 	public LocalDate getFechaNacimiento() {
 		return fechaNacimiento;
 	}
+	
 	public void setFechaNacimiento(LocalDate fechaNacimiento) {
 		this.fechaNacimiento = fechaNacimiento;
 	}
+	
 	public String getTelefonoPrincipal() {
 		return telefonoPrincipal;
 	}
+	
 	public void setTelefonoPrincipal(String telefonoPrincipal) {
 		this.telefonoPrincipal = telefonoPrincipal;
 	}
+	
 	public String getTelefonoAlternativo() {
 		return telefonoAlternativo;
 	}
+	
 	public void setTelefonoAlternativo(String telefonoAlternativo) {
 		this.telefonoAlternativo = telefonoAlternativo;
 	}
+	
 	public String getCiudad() {
 		return ciudad;
 	}
+	
 	public void setCiudad(String ciudad) {
 		this.ciudad = ciudad;
 	}
+	
 	@JsonIgnore
 	public String getContrasena() {
 		return contrasena;
 	}
+	
 	public void setContrasena(String contrasena) {
 		this.contrasena = contrasena;
 	}
+	
 	public String getDescripcion() {
 		return descripcion;
 	}
+	
 	public void setDescripcion(String descripcion) {
 		this.descripcion = descripcion;
 	}
+	
 	@JsonIgnore
 	public String getEstado() {
 		return estado;
 	}
+	
 	public void setEstado(String estado) {
 		this.estado = estado;
 	}
+	
 	@JsonIgnore
 	public int getIntentosIngreso() {
 		return intentosIngreso;
 	}
+	
 	public void setIntentosIngreso(int intentosIngreso) {
 		this.intentosIngreso = intentosIngreso;
 	}
+	
 	@JsonIgnore
 	public DateTime getFechaUltimoCambioContrasena() {
 		return fechaUltimoCambioContrasena;
 	}
+	
 	public void setFechaUltimoCambioContrasena(DateTime fechaUltimoCambioContrasena) {
 		this.fechaUltimoCambioContrasena = fechaUltimoCambioContrasena;
 	}
+	
 	@JsonIgnore
 	public DateTime getFechaUltimoIngreso() {
 		return fechaUltimoIngreso;
 	}
+	
 	public void setFechaUltimoIngreso(DateTime fechaUltimoIngreso) {
 		this.fechaUltimoIngreso = fechaUltimoIngreso;
 	}
+	
 	@JsonIgnore
 	public DateTime getFechaExpiracionContrasena() {
 		return fechaExpiracionContrasena;
 	}
+	
 	public void setFechaExpiracionContrasena(DateTime fechaExpiracionContrasena) {
 		this.fechaExpiracionContrasena = fechaExpiracionContrasena;
 	}
+	
 	@JsonIgnore
 	public DateTime getFechaCreacion() {
 		return fechaCreacion;
 	}
+	
 	public void setFechaCreacion(DateTime fechaCreacion) {
 		this.fechaCreacion = fechaCreacion;
 	}
+	
 	public String getMembresia() {
 		return membresia;
 	}
+	
 	public void setMembresia(String membresia) {
-		this.membresia = membresia;
+		this.membresia = (membresia != null && !membresia.isEmpty()) ? membresia.toUpperCase() : null;
 	}
+	
 	@JsonIgnore
 	public Set<Role> getRoles() {
 		return roles;
 	}
+	
 	public void setRoles(Set<Role> roles) {
 		this.roles = roles;
 	}
+	
 	public Set<Address> getDirecciones() {
 		return direcciones;
 	}
+	
 	public void setDirecciones(Set<Address> direcciones) {
 		this.direcciones = direcciones;
 	}
+	
 	public Set<District> getBarrios() {
 		return barrios;
 	}
+	
 	public void setBarrios(Set<District> barrios) {
 		this.barrios = barrios;
 	}
+	
 	@JsonIgnore
 	public Set<ServiceDto> getServicios() {
 		return servicios;
 	}
+	
 	public void setServicios(Set<ServiceDto> servicios) {
 		this.servicios = servicios;
 	}
+	
 	public void addServicio(ServiceDto servicio) {
 		this.servicios.add(servicio);
 	}
+	
 	public void removeServicio(ServiceDto servicio) {
 		this.servicios.remove(servicio);
-	}
-	@JsonIgnore
-	public Set<QuoteDto> getPresupuestos() {
-		return presupuestos;
-	}
-	public void setPresupuestos(Set<QuoteDto> presupuestos) {
-		this.presupuestos = presupuestos;
-	}
-    public void addPresupuesto(QuoteDto presupuesto) {
-		this.presupuestos.add(presupuesto);
-	}
-	public void removePresupuesto(QuoteDto presupuesto) {
-		this.presupuestos.remove(presupuesto);
 	}
 	
 	@Override
@@ -273,13 +300,13 @@ public class UserDto {
 		result = prime * result + intentosIngreso;
 		result = prime * result + ((membresia == null) ? 0 : membresia.hashCode());
 		result = prime * result + ((nombre == null) ? 0 : nombre.hashCode());
-		result = prime * result + ((presupuestos == null) ? 0 : presupuestos.hashCode());
 		result = prime * result + ((roles == null) ? 0 : roles.hashCode());
 		result = prime * result + ((servicios == null) ? 0 : servicios.hashCode());
 		result = prime * result + ((telefonoAlternativo == null) ? 0 : telefonoAlternativo.hashCode());
 		result = prime * result + ((telefonoPrincipal == null) ? 0 : telefonoPrincipal.hashCode());
 		return result;
 	}
+	
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)
@@ -371,11 +398,6 @@ public class UserDto {
 				return false;
 		} else if (!nombre.equals(other.nombre))
 			return false;
-		if (presupuestos == null) {
-			if (other.presupuestos != null)
-				return false;
-		} else if (!presupuestos.equals(other.presupuestos))
-			return false;
 		if (roles == null) {
 			if (other.roles != null)
 				return false;
@@ -398,6 +420,7 @@ public class UserDto {
 			return false;
 		return true;
 	}
+	
 	@Override
 	public String toString() {
 		return "UserDto [id=" + id + ", nombre=" + nombre + ", apellido=" + apellido + ", email=" + email
@@ -407,6 +430,6 @@ public class UserDto {
 				+ ", fechaUltimoCambioContrasena=" + fechaUltimoCambioContrasena + ", fechaUltimoIngreso="
 				+ fechaUltimoIngreso + ", fechaExpiracionContrasena=" + fechaExpiracionContrasena + ", fechaCreacion="
 				+ fechaCreacion + ", membresia=" + membresia + ", roles=" + roles + ", direcciones=" + direcciones
-				+ ", barrios=" + barrios + ", servicios=" + servicios + ", presupuestos=" + presupuestos + "]";
+				+ ", barrios=" + barrios + ", servicios=" + servicios + "]";
 	}
 }

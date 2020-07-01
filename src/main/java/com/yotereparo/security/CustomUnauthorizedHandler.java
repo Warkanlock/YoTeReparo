@@ -1,4 +1,4 @@
-package com.yotereparo.security.jwt;
+package com.yotereparo.security;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -20,9 +20,9 @@ import com.yotereparo.util.MiscUtils;
 import com.yotereparo.util.error.CustomResponseError;
 
 @Component
-public class AuthEntryPointJwt implements AuthenticationEntryPoint {
+public class CustomUnauthorizedHandler implements AuthenticationEntryPoint {
 
-	private static final Logger logger = LoggerFactory.getLogger(AuthEntryPointJwt.class);
+	private static final Logger logger = LoggerFactory.getLogger(CustomUnauthorizedHandler.class);
 	
 	@Autowired
     private MessageSource messageSource;
@@ -32,12 +32,12 @@ public class AuthEntryPointJwt implements AuthenticationEntryPoint {
 	@Override
 	public void commence(HttpServletRequest request, HttpServletResponse response,
 			AuthenticationException authException) throws IOException, ServletException {
-		logger.error("Unauthorized error: {}", authException.getMessage());
+		logger.error("[401] Unauthorized error: {}", authException.getMessage());
 		ObjectMapper objectMapper = new ObjectMapper();
-		CustomResponseError error = new CustomResponseError("Auth","error",messageSource.getMessage("client.error.unauthorized", null, Locale.getDefault()));
+		CustomResponseError error = new CustomResponseError(
+				"Authentication","error",messageSource.getMessage("client.error.unauthorized", null, Locale.getDefault()));
 		String jsonObject = objectMapper.writeValueAsString(miscUtils.getFormatedResponseError(error)); 
-		response.setContentType("application/json");
-		response.setCharacterEncoding("UTF-8");
+		response.setContentType("application/json; charset=UTF-8");
 		response.setStatus(401);
 		response.getWriter().write(jsonObject);
 	}

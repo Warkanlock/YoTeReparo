@@ -6,15 +6,19 @@ import ElementContainer from "../Container/ElementContainer";
 import "../Find/EncontrarServicios.css";
 import FloatCreateButton from "../Utils/FloatCreateButton";
 import { SessionContext } from "../Utils/SessionManage";
+import { Search } from "./SearchBar";
+import ResourceNotFound from "../Errors/ResourceNotFound";
 
 function EncontrarServicios(props) {
-  const [users, setUsers] = useState([]);
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const session = useContext(SessionContext);
+  const [errors, setError] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const { session } = useContext(SessionContext);
 
-  const securityToken = !session.security
-    ? props.history.push("/ingresar")
-    : false;
+  if (!session.security || session.security === undefined) {
+    props.history.push("/ingresar");
+  }
 
   let requestConfig = {
     headers: {
@@ -25,36 +29,61 @@ function EncontrarServicios(props) {
 
   useEffect(() => {
     const fetchData = async (urlToFetch) => {
-      const result = await Axios(urlToFetch, requestConfig);
-      setUsers(result.data);
+      try {
+        const result = await Axios(urlToFetch, requestConfig);
+        return result;
+      } catch {
+        setError(true);
+      }
     };
     try {
-      fetchData("http://localhost:8080/YoTeReparo/services/").then((resp) => {
-        setLoading(false);
+      fetchData("/YoTeReparo/services/").then((resp) => {
+        if (resp !== undefined) {
+          setLoading(false);
+          setError(false);
+          setServices(resp.data);
+        }
       });
-    } catch (error) {
-      console.log(error);
+    } catch {
+      setError(true);
     }
   }, [loading]);
 
   const ServicesData = {
-    users: users,
+    services: services,
     loading: loading,
   };
 
-  const Servicios = Hoc(ListaServicios, ServicesData);
+  //TODO ADD A FILTER SERVICESDATA
+  let filteredServices = ServicesData.services.filter((service) => {
+    return (
+      service.titulo.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1
+    );
+  });
+
+  const Servicios = Hoc(ListaServicios, {
+    ...ServicesData,
+    services: filteredServices,
+  });
+
+  const handleSearchTerm = (event) => {
+    setSearchTerm(event.target.value);
+  };
 
   return (
-    <ElementContainer>
-      <div className="card-center-form d-flex align-items-center mx-auto">
-        <div className="row">
-          <div className="col-xs-12">
+    <>
+      {errors ? (
+        <ResourceNotFound errorMessage="Hubo un error con la conexion."></ResourceNotFound>
+      ) : (
+        <div className="mb-5">
+          <ElementContainer>
+            <Search terms={searchTerm} onChange={handleSearchTerm} />
             <Servicios></Servicios>
-          </div>
-          <FloatCreateButton></FloatCreateButton>
+            <FloatCreateButton></FloatCreateButton>
+          </ElementContainer>
         </div>
-      </div>
-    </ElementContainer>
+      )}
+    </>
   );
 }
 

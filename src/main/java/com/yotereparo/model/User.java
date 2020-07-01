@@ -15,6 +15,8 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.persistence.JoinColumn;
+
+import org.hibernate.annotations.NaturalId;
 import org.hibernate.annotations.Type;
 import org.hibernate.annotations.Where;
 import org.joda.time.DateTime;
@@ -23,9 +25,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 @Entity
 @Table(name="usuario") 
-public class User
-{
-	
+public class User {
 	// Constantes de estado
 	public static final String ACTIVE = "ACTIVO";
 	public static final String INACTIVE = "INACTIVO";
@@ -46,6 +46,7 @@ public class User
 	
 	private String apellido;
 	
+	@NaturalId(mutable=true)
 	private String email;
 	
 	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) 
@@ -94,7 +95,7 @@ public class User
 	private DateTime fechaExpiracionContrasena;
 	
 	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-	@Column(name = "fecha_creacion", nullable = true)
+	@Column(name = "fecha_creacion", nullable = false)
 	@Type(type="org.jadira.usertype.dateandtime.joda.PersistentDateTime")
 	private DateTime fechaCreacion;
 	
@@ -109,7 +110,7 @@ public class User
         joinColumns = {@JoinColumn(name="id_usuario")},
         inverseJoinColumns = {@JoinColumn(name="id_rol")}    
     )
-	@Where(clause = "estado <> 'INACTIVO'")
+	@Where(clause = "estado <> '"+Role.INACTIVE+"'")
 	private Set<Role> roles = new HashSet<Role>(0);
 	
 	@ManyToMany(cascade=CascadeType.MERGE,fetch=FetchType.EAGER)
@@ -120,11 +121,16 @@ public class User
 	private Set<District> barrios = new HashSet<District>(0);
 	
 	@OneToMany(mappedBy = "usuarioPrestador", fetch = FetchType.EAGER, cascade=CascadeType.MERGE, orphanRemoval = true)
+	@Where(clause = "estado <> '"+Service.ARCHIVED+"' OR estado <> '"+Service.BLOCKED+"'")
 	private Set<Service> servicios  = new HashSet<Service>(0);
 	
 	@OneToMany(mappedBy = "usuarioFinal", fetch = FetchType.EAGER, cascade = CascadeType.MERGE, orphanRemoval = true)
-	@Where(clause = "estado <> 'ARCHIVADO'")
+	@Where(clause = "estado <> '"+Quote.ARCHIVED+"'")
 	private Set<Quote> presupuestos = new HashSet<Quote>(0);
+	
+	@OneToMany(mappedBy = "usuarioFinal", fetch = FetchType.EAGER, cascade = CascadeType.MERGE, orphanRemoval = true)
+	@Where(clause = "estado <> '"+Message.ARCHIVED+"'")
+	private Set<Message> mensajes = new HashSet<Message>(0);
 
 	public User() {	}
 	
@@ -133,7 +139,7 @@ public class User
 		return id;
 	}
 	public void setId(String id) {
-		this.id = id;
+		this.id = (id != null && !id.isEmpty()) ? id.toLowerCase() : null;
 	}
 
 	public String getNombre() {
@@ -266,7 +272,7 @@ public class User
 		return membresia;
 	}
 	public void setMembresia(String membresia) {
-		this.membresia = membresia;
+		this.membresia = (membresia != null && !membresia.isEmpty()) ? membresia.toUpperCase() : null;
 	}
 
 	public Set<Role> getRoles() {
@@ -338,6 +344,19 @@ public class User
     public void removePresupuesto(Quote presupuesto) {
     	presupuestos.remove(presupuesto);
     }
+    
+    public Set<Message> getMensajes() {
+		return mensajes;
+	}
+	public void setMensajes(Set<Message> mensajes) {
+		this.mensajes = mensajes;
+	}
+	public void addMensaje(Message mensaje) {
+		mensajes.add(mensaje);
+    }
+    public void removeMensaje(Message mensaje) {
+    	mensajes.remove(mensaje);
+    }
 
 	@Override
 	public boolean equals(Object obj) {
@@ -382,6 +401,11 @@ public class User
 			if (other.presupuestos != null)
 				return false;
 		} else if (!presupuestos.equals(other.presupuestos))
+			return false;
+		if (mensajes == null) {
+			if (other.mensajes != null)
+				return false;
+		} else if (!mensajes.equals(other.mensajes))
 			return false;
 		if (email == null) {
 			if (other.email != null)
@@ -478,6 +502,6 @@ public class User
 				+ ", fechaUltimoIngreso=" + fechaUltimoIngreso + ", fechaExpiracionContrasena="
 				+ fechaExpiracionContrasena + ", fechaCreacion=" + fechaCreacion + ", membresia=" + membresia
 				+ ", direcciones=" + direcciones + ", roles=" + roles + ", barrios=" + barrios + ", servicios="
-				+ servicios + ", presupuestos=" + presupuestos + "]";
+				+ servicios + ", presupuestos=" + presupuestos + ", mensajes=" + mensajes + "]";
 	}
 }

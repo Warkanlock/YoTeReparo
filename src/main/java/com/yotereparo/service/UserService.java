@@ -22,9 +22,15 @@ public interface UserService {
      
     User getUserById(String id);
     
+    User getUserByEmail(String email);
+    
     void updateUserPhotoById(String id, byte[] b64photo);
     
     boolean isProvider(User user);
     
     boolean isCustomer(User user);
+    
+    boolean isServiceAccountOrAdministrator(User user);
+    
+    boolean hasMembershipAllowance(User user);
 }
